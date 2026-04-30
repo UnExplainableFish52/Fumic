@@ -1,0 +1,26 @@
+{
+  "name": "fumic",
+  "productName": "Fumic",
+  "description": "Powerful Keyboard Controlled Minimal Designed Media Player",
+  "author": "TheIdealDev52",
+  "private": true,
+  "version": "1.5.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "electron": "^30.0.1",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.6",
+    "vite-plugin-electron": "^0.28.6",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "main": "dist-electron/main.js",
+  "dependencies": {
+    "music-metadata": "^11.12.3"
+  }
+}

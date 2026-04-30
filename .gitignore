@@ -1,0 +1,47 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build outputs
+temp
+_captain/
+dist-electron
+dist
+release/
+
+# Lock file
+# package-lock.json (Commented out: DO NOT ignore this, GitHub Actions needs it for reliable builds)
+
+# Large screenshots / images not needed in repo
+homepage.jpg
+music_collection_all.png
+settings_about.png
+
+# Internal planning docs
+shelly.md
+objective.md
+plans.md
+
+# Gemini / AI tool data
+.gemini/
