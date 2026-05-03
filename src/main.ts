@@ -9,6 +9,8 @@ import type {
 type AppView = "home" | "settings" | "info" | "player" | "cinema" | "visualizer";
 type PlayerMode = "playing" | "paused";
 type RepeatMode = "all" | "one" | "off";
+type VisualizerStyle = "classic" | "trapNation";
+type ParticleStyle = "warm" | "cool";
 
 interface IndexedMediaItem {
   item: MediaLibraryItem;
@@ -28,6 +30,9 @@ interface ShellState {
   dataDirectoryLabel: string;
   audioDirectoryLabel: string;
   videoDirectoryLabel: string;
+  visualizerStyle: VisualizerStyle;
+  particleStyle: ParticleStyle;
+  visualizerBgIndex: number;
   actionLog: string;
 }
 
@@ -62,6 +67,9 @@ const state: ShellState = {
   dataDirectoryLabel: "Not selected yet",
   audioDirectoryLabel: "Not selected yet",
   videoDirectoryLabel: "Not selected yet",
+  visualizerStyle: "trapNation",
+  particleStyle: "warm",
+  visualizerBgIndex: 6,
   actionLog: "Ready.",
 };
 
@@ -84,6 +92,18 @@ let visualizerArtImage: HTMLImageElement | null = null;
 let videoLibraryScanned = false;
 let vizSmoothedIntensity = 0;
 let visualizerArtSrc = "";
+
+/* ── Trap Nation Visualizer ── */
+interface VizParticle {
+  x: number; y: number; vx: number; vy: number;
+  size: number; alpha: number; hue: number;
+  life: number; maxLife: number;
+}
+let vizParticles: VizParticle[] = [];
+let visualizerBgImage: HTMLImageElement | null = null;
+const MAX_PARTICLES = 300;
+const VIZ_BG_COUNT = 6;
+const VIZ_BG_NAMES = ["Distant Bushido", "Dark Shrine Gate", "Dark Castle", "Samurai", "Night Girl", "Anime Sky"];
 
 /* ── Inline SVG Icons for Transport ── */
 const ICON = {
@@ -147,10 +167,10 @@ function renderShell() {
         </div>
 
         <nav class="primary-nav" aria-label="Views">
-          <button id="nav-home" class="chip ${state.activeView === "home" ? "active" : ""}" type="button">Home</button>
-          <button id="nav-settings" class="chip ${state.activeView === "settings" ? "active" : ""}" type="button">Settings</button>
-          <button id="nav-info" class="chip ${state.activeView === "info" ? "active" : ""}" type="button">Info</button>
-          <button id="manual-refresh" class="chip refresh-chip" type="button" title="Refresh Library">${ICON.refresh}</button>
+          <button id="nav-home" class="chip ${state.activeView === "home" ? "active" : ""}" type="button" title="Home (Ctrl+H)">Home</button>
+          <button id="nav-settings" class="chip ${state.activeView === "settings" ? "active" : ""}" type="button" title="Settings (Ctrl+S)">Settings</button>
+          <button id="nav-info" class="chip ${state.activeView === "info" ? "active" : ""}" type="button" title="Info (Ctrl+I)">Info</button>
+          <button id="manual-refresh" class="chip refresh-chip" type="button" title="Refresh Library (Ctrl+R)">${ICON.refresh}</button>
         </nav>
 
         <div class="search-wrap">
@@ -158,8 +178,8 @@ function renderShell() {
         </div>
 
         <div class="tab-pills" role="tablist" aria-label="Library Tabs">
-          <button id="tab-audio" class="tab-pill ${state.activeTab === "audio" ? "active" : ""}" type="button" role="tab" aria-selected="${state.activeTab === "audio"}">Audio</button>
-          <button id="tab-video" class="tab-pill ${state.activeTab === "video" ? "active" : ""}" type="button" role="tab" aria-selected="${state.activeTab === "video"}">Video</button>
+          <button id="tab-audio" class="tab-pill ${state.activeTab === "audio" ? "active" : ""}" type="button" role="tab" aria-selected="${state.activeTab === "audio"}" title="Audio Tab (Ctrl+A)">Audio</button>
+          <button id="tab-video" class="tab-pill ${state.activeTab === "video" ? "active" : ""}" type="button" role="tab" aria-selected="${state.activeTab === "video"}" title="Video Tab (Ctrl+V)">Video</button>
         </div>
       </header>
 
@@ -210,13 +230,13 @@ function renderTransportDock() {
         </div>
 
         <div class="dock-section controls spotify-controls">
-          <button id="toggle-shuffle" class="transport-icon ${state.shuffleEnabled ? "active" : ""}" type="button" aria-label="Shuffle" title="Shuffle">${ICON.shuffle}</button>
-          <button id="transport-prev" class="transport-icon" type="button" aria-label="Previous" title="Previous">${ICON.prev}</button>
-          <button id="toggle-play" class="transport-icon transport-primary" type="button" aria-label="Play or pause" title="Play/Pause">
+          <button id="toggle-shuffle" class="transport-icon ${state.shuffleEnabled ? "active" : ""}" type="button" aria-label="Shuffle" title="Shuffle (Shift+S)">${ICON.shuffle}</button>
+          <button id="transport-prev" class="transport-icon" type="button" aria-label="Previous" title="Previous (Ctrl+\u2190)">${ICON.prev}</button>
+          <button id="toggle-play" class="transport-icon transport-primary" type="button" aria-label="Play or pause" title="Play / Pause (Space)">
             ${state.playerMode === "playing" ? ICON.pause : ICON.play}
           </button>
-          <button id="transport-next" class="transport-icon" type="button" aria-label="Next" title="Next">${ICON.next}</button>
-          <button id="cycle-repeat" class="transport-icon ${state.repeatMode !== "off" ? "active" : ""}" type="button" aria-label="Repeat" title="Repeat: ${state.repeatMode}" data-repeat="${state.repeatMode}">${ICON.repeat}</button>
+          <button id="transport-next" class="transport-icon" type="button" aria-label="Next" title="Next (Ctrl+\u2192)">${ICON.next}</button>
+          <button id="cycle-repeat" class="transport-icon ${state.repeatMode !== "off" ? "active" : ""}" type="button" aria-label="Repeat" title="Repeat: ${state.repeatMode} (Shift+L)" data-repeat="${state.repeatMode}">${ICON.repeat}</button>
         </div>
 
         <div class="dock-section status">
@@ -489,9 +509,21 @@ function mountVisualizer() {
   }
   visualizerControlsVisible = true;
   resetVisualizerControlsTimer();
+
+  /* Load selected background image for both visualizer styles */
+  visualizerBgImage = new Image();
+  visualizerBgImage.src = `./viz_bg${state.visualizerBgIndex}.jpg`;
 }
 
 function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+  if (state.visualizerStyle === "trapNation") {
+    drawTrapNationFrame(canvas, ctx);
+  } else {
+    drawClassicVisualizerFrame(canvas, ctx);
+  }
+}
+
+function drawClassicVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
   const W = canvas.width;
   const H = canvas.height;
   const cx = W / 2;
@@ -504,19 +536,27 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   const dataArray = new Uint8Array(bufferLength);
   if (analyserNode) analyserNode.getByteFrequencyData(dataArray);
 
-  /* ── Calculate overall intensity (average of all bins) ── */
   let rawSum = 0;
   for (let i = 0; i < bufferLength; i++) rawSum += dataArray[i];
   const rawIntensity = rawSum / (bufferLength * 255);
-  /* Exponential smoothing for fluid motion */
   vizSmoothedIntensity = vizSmoothedIntensity * 0.88 + rawIntensity * 0.12;
   const intensity = vizSmoothedIntensity;
 
-  /* ── Background ── */
-  ctx.fillStyle = "#050510";
-  ctx.fillRect(0, 0, W, H);
+  /* Background image + overlay */
+  if (visualizerBgImage && visualizerBgImage.complete && visualizerBgImage.naturalWidth > 0) {
+    const imgW = visualizerBgImage.naturalWidth;
+    const imgH = visualizerBgImage.naturalHeight;
+    const scale = Math.max(W / imgW, H / imgH);
+    const drawW = imgW * scale;
+    const drawH = imgH * scale;
+    ctx.drawImage(visualizerBgImage, (W - drawW) / 2, (H - drawH) / 2, drawW, drawH);
+    ctx.fillStyle = "rgba(0, 0, 10, 0.55)";
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.fillStyle = "#050510";
+    ctx.fillRect(0, 0, W, H);
+  }
 
-  /* Pulsing ambient glow */
   const ambientRadius = minDim * (0.5 + intensity * 0.2);
   const ambientGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, ambientRadius);
   ambientGlow.addColorStop(0, `rgba(0, 220, 200, ${0.04 + intensity * 0.08})`);
@@ -526,7 +566,6 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   ctx.fillStyle = ambientGlow;
   ctx.fillRect(0, 0, W, H);
 
-  /* ── Dimensions ── */
   const artRadius = minDim * 0.16;
   const ringGap = minDim * 0.035;
   const baseRingRadius = artRadius + ringGap;
@@ -537,18 +576,12 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   const baseThickness = 4 * dpr;
   const dynamicThickness = baseThickness + intensity * 12 * dpr;
 
-  /* ── Ring segments count for smooth wave effect ── */
   const segmentCount = 200;
-
-  /* Create a subtle wave pattern on the ring driven by intensity */
   const waveCount = 6;
   const waveSpeed = 2.2;
   const waveAmplitude = intensity * minDim * 0.018;
-
-  /* Slowly rotating color offset for dynamism */
   const colorRotation = time * 0.15;
 
-  /* ── Draw glowing ring (3 layers for neon glow) ── */
   const glowLayers = [
     { blur: 40 * dpr, alpha: 0.15 + intensity * 0.15, widthMul: 3.0 },
     { blur: 18 * dpr, alpha: 0.3 + intensity * 0.2, widthMul: 1.8 },
@@ -561,8 +594,6 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
     ctx.lineWidth = dynamicThickness * layer.widthMul;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-
-    /* Draw the ring as connected segments with wave variation */
     ctx.beginPath();
     for (let i = 0; i <= segmentCount; i++) {
       const t = i / segmentCount;
@@ -575,8 +606,6 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
       else ctx.lineTo(x, y);
     }
     ctx.closePath();
-
-    /* Conic gradient for rainbow/cyan/teal Trap Nation look */
     const gradient = ctx.createConicGradient(colorRotation, cx, cy);
     gradient.addColorStop(0, `rgba(0, 255, 210, ${layer.alpha})`);
     gradient.addColorStop(0.12, `rgba(0, 200, 255, ${layer.alpha})`);
@@ -587,14 +616,12 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
     gradient.addColorStop(0.75, `rgba(0, 255, 120, ${layer.alpha})`);
     gradient.addColorStop(0.87, `rgba(0, 220, 255, ${layer.alpha})`);
     gradient.addColorStop(1, `rgba(0, 255, 210, ${layer.alpha})`);
-
     ctx.strokeStyle = gradient;
     ctx.shadowColor = `rgba(0, 220, 200, ${layer.alpha * 0.6})`;
     ctx.stroke();
     ctx.restore();
   }
 
-  /* ── Inner glow ring (subtle white highlight at art boundary) ── */
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, artRadius + 2 * dpr, 0, Math.PI * 2);
@@ -605,13 +632,11 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   ctx.stroke();
   ctx.restore();
 
-  /* ── Center disc - album art or gradient ── */
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, artRadius, 0, Math.PI * 2);
   ctx.closePath();
   ctx.clip();
-
   if (visualizerArtImage && visualizerArtImage.complete && visualizerArtImage.naturalWidth > 0) {
     const sz = artRadius * 2;
     ctx.drawImage(visualizerArtImage, cx - sz / 2, cy - sz / 2, sz, sz);
@@ -625,12 +650,207 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   }
   ctx.restore();
 
-  /* ── Art border ring ── */
   ctx.beginPath();
   ctx.arc(cx, cy, artRadius, 0, Math.PI * 2);
   ctx.strokeStyle = `rgba(255, 255, 255, ${0.12 + intensity * 0.12})`;
   ctx.lineWidth = 1.5 * dpr;
   ctx.stroke();
+
+  visualizerAnimationId = requestAnimationFrame(() => drawVisualizerFrame(canvas, ctx));
+}
+
+/* ========================================
+   TRAP NATION VISUALIZER
+   ======================================== */
+
+function spawnParticle(W: number, H: number, intensity: number) {
+  if (vizParticles.length >= MAX_PARTICLES) return;
+  const isWarm = state.particleStyle === "warm";
+  const hue = isWarm
+    ? 15 + Math.random() * 35   /* orange / amber / gold */
+    : 170 + Math.random() * 55; /* cyan / teal / blue */
+  const maxLife = 160 + Math.random() * 160;
+  const speed = 1.5 + Math.random() * 2.5 + intensity * 3.5;
+  const drift = (Math.random() - 0.5) * 1.2;
+
+  /* Spawn from one of 4 edges, drift toward center */
+  const dir = Math.floor(Math.random() * 4);
+  let x: number, y: number, vx: number, vy: number;
+  if (dir === 0) {        /* top */
+    x = Math.random() * W; y = -10; vx = drift; vy = speed;
+  } else if (dir === 1) { /* bottom */
+    x = Math.random() * W; y = H + 10; vx = drift; vy = -speed;
+  } else if (dir === 2) { /* left */
+    x = -10; y = Math.random() * H; vx = speed; vy = drift;
+  } else {                /* right */
+    x = W + 10; y = Math.random() * H; vx = -speed; vy = drift;
+  }
+
+  vizParticles.push({
+    x, y, vx, vy,
+    size: 2 + Math.random() * 4,
+    alpha: 0.3 + Math.random() * 0.5,
+    hue,
+    life: maxLife,
+    maxLife,
+  });
+}
+
+function updateAndDrawParticles(
+  ctx: CanvasRenderingContext2D, W: number, H: number,
+  intensity: number, dpr: number
+) {
+  const spawnRate = Math.floor(2 + intensity * 6);
+  for (let s = 0; s < spawnRate; s++) spawnParticle(W, H, intensity);
+
+  for (let i = vizParticles.length - 1; i >= 0; i--) {
+    const p = vizParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    const lifeFrac = Math.max(0, p.life / p.maxLife);
+    p.alpha = lifeFrac * 0.6;
+
+    if (p.life <= 0 || p.y < -30 || p.y > H + 30 || p.x < -30 || p.x > W + 30) {
+      vizParticles.splice(i, 1);
+      continue;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${p.hue}, 90%, 60%, ${p.alpha})`;
+    ctx.shadowBlur = 14 * dpr;
+    ctx.shadowColor = `hsla(${p.hue}, 90%, 55%, ${p.alpha * 0.8})`;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawTrapNationFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const cx = W / 2;
+  const cy = H * 0.45;
+  const dpr = window.devicePixelRatio || 1;
+  const minDim = Math.min(W, H);
+
+  const bufferLength = analyserNode ? analyserNode.frequencyBinCount : 128;
+  const dataArray = new Uint8Array(bufferLength);
+  if (analyserNode) analyserNode.getByteFrequencyData(dataArray);
+
+  /* Overall intensity */
+  let rawSum = 0;
+  for (let i = 0; i < bufferLength; i++) rawSum += dataArray[i];
+  const rawIntensity = rawSum / (bufferLength * 255);
+  vizSmoothedIntensity = vizSmoothedIntensity * 0.82 + rawIntensity * 0.18;
+  const intensity = vizSmoothedIntensity;
+
+  /* === Layer 1: Background Image === */
+  if (visualizerBgImage && visualizerBgImage.complete && visualizerBgImage.naturalWidth > 0) {
+    const imgW = visualizerBgImage.naturalWidth;
+    const imgH = visualizerBgImage.naturalHeight;
+    const scale = Math.max(W / imgW, H / imgH);
+    const drawW = imgW * scale;
+    const drawH = imgH * scale;
+    const drawX = (W - drawW) / 2;
+    const drawY = (H - drawH) / 2;
+    ctx.drawImage(visualizerBgImage, drawX, drawY, drawW, drawH);
+  } else {
+    ctx.fillStyle = "#050510";
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* === Layer 2: Dark Overlay === */
+  ctx.fillStyle = `rgba(0, 0, 10, ${0.5 - intensity * 0.08})`;
+  ctx.fillRect(0, 0, W, H);
+
+  /* === Layer 3: Ambient Glow === */
+  const glowR = minDim * (0.45 + intensity * 0.2);
+  const ambientGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+  ambientGlow.addColorStop(0, `rgba(0, 200, 220, ${0.05 + intensity * 0.12})`);
+  ambientGlow.addColorStop(0.4, `rgba(120, 0, 255, ${0.03 + intensity * 0.08})`);
+  ambientGlow.addColorStop(1, "transparent");
+  ctx.fillStyle = ambientGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  /* === Layer 4: Floating Particles === */
+  updateAndDrawParticles(ctx, W, H, intensity, dpr);
+
+  /* === Layer 5: Frequency Bars (Trap Nation starburst, mirrored) === */
+  const artRadius = minDim * 0.15;
+  const barGap = minDim * 0.025;
+  const innerBarRadius = artRadius + barGap;
+  const maxBarLen = minDim * 0.24;
+  const barCount = 140;
+  const halfCount = barCount / 2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  for (let i = 0; i < barCount; i++) {
+    const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
+
+    /* Mirror: bars 0..half map to freq bins, bars half..barCount mirror back */
+    const mirrorI = i <= halfCount ? i : barCount - i;
+    const t = mirrorI / halfCount;
+    /* Power curve for better frequency distribution (compress bass, spread treble) */
+    const di = Math.floor(Math.pow(t, 1.5) * (bufferLength - 1));
+    const value = dataArray[di] / 255;
+    const barLen = Math.max(3 * dpr, value * maxBarLen);
+
+    /* Rainbow hue shifted to start at cyan (~180) */
+    const hue = ((i / barCount) * 360 + 180) % 360;
+    const sat = 80 + value * 20;
+    const lit = 45 + value * 25;
+
+    ctx.save();
+    ctx.rotate(angle);
+
+    /* Neon glow */
+    ctx.shadowBlur = value * 26 * dpr;
+    ctx.shadowColor = `hsla(${hue}, ${sat}%, ${lit}%, 0.65)`;
+
+    /* Bar width proportional to circumference */
+    const bw = Math.max(2 * dpr, ((2 * Math.PI * innerBarRadius) / barCount) * 0.62);
+    ctx.fillStyle = `hsl(${hue}, ${sat}%, ${lit}%)`;
+    ctx.fillRect(innerBarRadius, -bw / 2, barLen, bw);
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  /* === Layer 6: Center Album Art === */
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, artRadius, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+
+  if (visualizerArtImage && visualizerArtImage.complete && visualizerArtImage.naturalWidth > 0) {
+    const sz = artRadius * 2;
+    ctx.drawImage(visualizerArtImage, cx - sz / 2, cy - sz / 2, sz, sz);
+  } else {
+    const discG = ctx.createRadialGradient(cx, cy, 0, cx, cy, artRadius);
+    discG.addColorStop(0, `rgba(0, 220, 200, ${0.5 + intensity * 0.3})`);
+    discG.addColorStop(0.5, `rgba(100, 0, 255, ${0.3 + intensity * 0.2})`);
+    discG.addColorStop(1, "rgba(20, 10, 40, 0.9)");
+    ctx.fillStyle = discG;
+    ctx.fillRect(cx - artRadius, cy - artRadius, artRadius * 2, artRadius * 2);
+  }
+  ctx.restore();
+
+  /* === Layer 7: Art Border with Glow === */
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, artRadius, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 + intensity * 0.15})`;
+  ctx.lineWidth = 2 * dpr;
+  ctx.shadowBlur = 12 * dpr;
+  ctx.shadowColor = `rgba(0, 220, 200, ${0.2 + intensity * 0.25})`;
+  ctx.stroke();
+  ctx.restore();
 
   visualizerAnimationId = requestAnimationFrame(() => drawVisualizerFrame(canvas, ctx));
 }
@@ -645,6 +865,8 @@ function cleanupVisualizer() {
     visualizerControlsTimer = null;
   }
   visualizerControlsVisible = true;
+  vizParticles = [];
+  visualizerBgImage = null;
   const container = document.querySelector<HTMLElement>("#audio-visualizer");
   if (container) container.removeEventListener("mousemove", handleVisualizerActivity);
 }
@@ -751,6 +973,24 @@ function renderSettingsView() {
         </article>
 
         <article class="setting-card">
+          <p class="meta-label">Visualizer</p>
+          <p class="meta-value">Visualizer style:</p>
+          <div class="viz-style-options">
+            <button id="viz-classic" class="button secondary ${state.visualizerStyle === "classic" ? "active" : ""}" type="button">Classic</button>
+            <button id="viz-trapnation" class="button secondary ${state.visualizerStyle === "trapNation" ? "active" : ""}" type="button">Trap Nation</button>
+          </div>
+          <p class="meta-value" style="margin-top: 0.8rem;">Background image:</p>
+          <div class="viz-style-options">
+            ${VIZ_BG_NAMES.map((name, i) => `<button id="viz-bg-${i + 1}" class="button secondary ${state.visualizerBgIndex === i + 1 ? "active" : ""}" type="button">${escapeHtml(name)}</button>`).join("\n            ")}
+          </div>
+          <p class="meta-value" style="margin-top: 0.8rem;">Particle style:</p>
+          <div class="viz-style-options">
+            <button id="particle-warm" class="button secondary ${state.particleStyle === "warm" ? "active" : ""}" type="button">🔥 Warm Embers</button>
+            <button id="particle-cool" class="button secondary ${state.particleStyle === "cool" ? "active" : ""}" type="button">❄️ Cool Sparks</button>
+          </div>
+        </article>
+
+        <article class="setting-card">
           <p class="meta-label">Privacy</p>
           <p class="meta-value">Telemetry is disabled. Fumic does not upload analytics or media data.</p>
         </article>
@@ -830,6 +1070,7 @@ function renderInfoView() {
           <div class="shortcut-entry"><span class="shortcut-key">Ctrl + F</span><span class="shortcut-desc">Toggle Full Screen Player</span></div>
           <div class="shortcut-entry"><span class="shortcut-key">Ctrl + R</span><span class="shortcut-desc">Refresh Current Library</span></div>
           <div class="shortcut-entry"><span class="shortcut-key">Ctrl + E</span><span class="shortcut-desc">Toggle Audio Visualizer</span></div>
+          <div class="shortcut-entry"><span class="shortcut-key">Shift + F</span><span class="shortcut-desc">Toggle Fullscreen</span></div>
         </div>
       </div>
 
@@ -1067,6 +1308,44 @@ function wireUiEvents() {
         void refreshAudioLibrary("Audio library refreshed.");
       } else {
         void refreshVideoLibrary("Video library refreshed.");
+      }
+      return;
+    }
+
+    if (button.id === "viz-classic") {
+      state.visualizerStyle = "classic";
+      renderShell();
+      setActionLog("Visualizer style: Classic.");
+      return;
+    }
+
+    if (button.id === "viz-trapnation") {
+      state.visualizerStyle = "trapNation";
+      renderShell();
+      setActionLog("Visualizer style: Trap Nation.");
+      return;
+    }
+
+    if (button.id === "particle-warm") {
+      state.particleStyle = "warm";
+      renderShell();
+      setActionLog("Particle style: Warm Embers.");
+      return;
+    }
+
+    if (button.id === "particle-cool") {
+      state.particleStyle = "cool";
+      renderShell();
+      setActionLog("Particle style: Cool Sparks.");
+      return;
+    }
+
+    if (button.id.startsWith("viz-bg-")) {
+      const idx = parseInt(button.id.replace("viz-bg-", ""), 10);
+      if (idx >= 1 && idx <= VIZ_BG_COUNT) {
+        state.visualizerBgIndex = idx;
+        renderShell();
+        setActionLog(`Background: ${VIZ_BG_NAMES[idx - 1]}.`);
       }
       return;
     }
@@ -1577,6 +1856,13 @@ function handleKeyboard(event: KeyboardEvent) {
     handleVisualizerActivity();
   }
 
+  /* ── Ctrl + W  →  Close the application ── */
+  if (event.ctrlKey && event.key.toLowerCase() === "w") {
+    event.preventDefault();
+    window.close();
+    return;
+  }
+
   if (event.ctrlKey && event.key.toLowerCase() === "h") {
     event.preventDefault();
     switchView("home");
@@ -1731,6 +2017,19 @@ function handleKeyboard(event: KeyboardEvent) {
       event.preventDefault();
       (target as HTMLElement)?.blur();
       setActionLog("Search unfocused.");
+    }
+    return;
+  }
+
+  /* ── Shift + F  →  Toggle Fullscreen (like F11) ── */
+  if (event.shiftKey && event.key === "F") {
+    event.preventDefault();
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      setActionLog("Exited fullscreen.");
+    } else {
+      void document.documentElement.requestFullscreen();
+      setActionLog("Entered fullscreen.");
     }
     return;
   }

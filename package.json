@@ -4,7 +4,7 @@
   "description": "Powerful Keyboard Controlled Minimal Designed Media Player",
   "author": "TheIdealDev52",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.5.3",
   "type": "module",
   "scripts": {
     "dev": "vite",

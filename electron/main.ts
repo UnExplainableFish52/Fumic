@@ -216,6 +216,7 @@ function createWindow() {
     height: 820,
     minWidth: 980,
     minHeight: 640,
+    fullscreen: true,
     backgroundColor: "#151a1e",
     autoHideMenuBar: true,
     icon: path.join(process.env.APP_ROOT, "build", "icon.ico"),
