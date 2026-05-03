@@ -37,15 +37,18 @@ export interface BootstrapPayload {
   platform: string;
   supportedFormats: MediaFormat[];
   dataDirectory: string;
-  libraryDirectory: string;
+  audioDirectory: string;
+  videoDirectory: string;
   shortcuts: ShortcutDefinition[];
 }
 
 export interface LokiAppApi {
   getBootstrap: () => Promise<BootstrapPayload>;
   pickDataDirectory: () => Promise<string | null>;
-  pickLibraryDirectory: () => Promise<string | null>;
-  scanLibrary: () => Promise<LibrarySnapshot>;
+  pickAudioDirectory: () => Promise<string | null>;
+  pickVideoDirectory: () => Promise<string | null>;
+  scanAudioLibrary: () => Promise<LibrarySnapshot>;
+  scanVideoLibrary: () => Promise<LibrarySnapshot>;
   getMediaMetadata: (filePath: string) => Promise<MediaMetadata>;
   onMainMessage: (listener: (message: string) => void) => () => void;
 }
@@ -53,8 +56,10 @@ export interface LokiAppApi {
 export const IPC_CHANNELS = {
   bootstrap: "loki:bootstrap",
   pickDataDirectory: "loki:pick-data-directory",
-  pickLibraryDirectory: "loki:pick-library-directory",
-  scanLibrary: "loki:scan-library",
+  pickAudioDirectory: "loki:pick-audio-directory",
+  pickVideoDirectory: "loki:pick-video-directory",
+  scanAudioLibrary: "loki:scan-audio-library",
+  scanVideoLibrary: "loki:scan-video-library",
   getMediaMetadata: "loki:get-media-metadata",
   mainMessage: "loki:main-message",
 } as const;

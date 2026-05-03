@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, net } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, net, Menu } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -37,7 +37,8 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 
 let win: BrowserWindow | null;
 let dataDirectory = app.getPath("userData");
-let libraryDirectory = app.getPath("music");
+let audioDirectory = app.getPath("music");
+let videoDirectory = app.getPath("videos");
 
 const supportedFormats: BootstrapPayload["supportedFormats"] = [
   "mp4",
@@ -45,7 +46,10 @@ const supportedFormats: BootstrapPayload["supportedFormats"] = [
   "opus",
   "wav",
 ];
-const supportedExtensions = new Set([".mp3", ".opus", ".wav", ".mp4"]);
+
+const audioExtensions = new Set([".mp3", ".opus", ".wav"]);
+const videoExtensions = new Set([".mp4"]);
+const supportedExtensions = new Set([...audioExtensions, ...videoExtensions]);
 
 // Register custom protocol for serving local media files to the renderer.
 // Must be called before app.whenReady().
@@ -86,6 +90,7 @@ const shortcuts: BootstrapPayload["shortcuts"] = [
     combo: "Ctrl + Left / Ctrl + Right",
   },
   { id: "playSelected", label: "Play Selected", combo: "Ctrl + Enter" },
+  { id: "refreshLibrary", label: "Refresh Current Library", combo: "Ctrl + R" },
   {
     id: "likedMusic",
     label: "Add To Liked Music",
@@ -107,7 +112,8 @@ function getBootstrapPayload(): BootstrapPayload {
     platform: process.platform,
     supportedFormats,
     dataDirectory,
-    libraryDirectory,
+    audioDirectory,
+    videoDirectory,
     shortcuts,
   };
 }
@@ -128,9 +134,11 @@ function inferMediaKind(filePath: string): MediaKind | null {
 
 async function collectMediaFiles(
   rootDirectory: string,
+  allowedExtensions?: Set<string>,
 ): Promise<MediaLibraryItem[]> {
   const collected: MediaLibraryItem[] = [];
   const stack: string[] = [rootDirectory];
+  const filterSet = allowedExtensions || supportedExtensions;
 
   while (stack.length > 0) {
     const currentDirectory = stack.pop();
@@ -159,7 +167,7 @@ async function collectMediaFiles(
       }
 
       const extension = path.extname(entry.name).toLowerCase();
-      if (!supportedExtensions.has(extension)) {
+      if (!filterSet.has(extension)) {
         continue;
       }
 
@@ -186,10 +194,18 @@ async function collectMediaFiles(
   );
 }
 
-async function scanLibrarySnapshot(): Promise<LibrarySnapshot> {
-  const items = await collectMediaFiles(libraryDirectory);
+async function scanAudioSnapshot(): Promise<LibrarySnapshot> {
+  const items = await collectMediaFiles(audioDirectory, audioExtensions);
   return {
-    rootDirectory: libraryDirectory,
+    rootDirectory: audioDirectory,
+    items,
+  };
+}
+
+async function scanVideoSnapshot(): Promise<LibrarySnapshot> {
+  const items = await collectMediaFiles(videoDirectory, videoExtensions);
+  return {
+    rootDirectory: videoDirectory,
     items,
   };
 }
@@ -208,6 +224,34 @@ function createWindow() {
       webSecurity: false,
     },
   });
+
+  /* Override default Electron menu to remove Ctrl+R reload accelerator.
+     Keep Edit menu for clipboard shortcuts and DevTools in dev mode. */
+  const menuTemplate: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+  ];
+
+  if (VITE_DEV_SERVER_URL) {
+    menuTemplate.push({
+      label: "Developer",
+      submenu: [
+        { role: "toggleDevTools" },
+      ],
+    });
+  }
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
   // Test active push message to Renderer-process.
   win.webContents.on("did-finish-load", () => {
@@ -247,14 +291,14 @@ function registerIpcHandlers() {
     return dataDirectory;
   });
 
-  ipcMain.handle(IPC_CHANNELS.pickLibraryDirectory, async () => {
+  ipcMain.handle(IPC_CHANNELS.pickAudioDirectory, async () => {
     if (!win) {
       return null;
     }
 
     const result = await dialog.showOpenDialog(win, {
-      title: "Select Fumic Media Library Directory",
-      defaultPath: libraryDirectory,
+      title: "Select Audio Library Directory",
+      defaultPath: audioDirectory,
       properties: ["openDirectory", "createDirectory"],
     });
 
@@ -262,12 +306,35 @@ function registerIpcHandlers() {
       return null;
     }
 
-    libraryDirectory = result.filePaths[0];
-    return libraryDirectory;
+    audioDirectory = result.filePaths[0];
+    return audioDirectory;
   });
 
-  ipcMain.handle(IPC_CHANNELS.scanLibrary, async () => {
-    return scanLibrarySnapshot();
+  ipcMain.handle(IPC_CHANNELS.pickVideoDirectory, async () => {
+    if (!win) {
+      return null;
+    }
+
+    const result = await dialog.showOpenDialog(win, {
+      title: "Select Video Library Directory",
+      defaultPath: videoDirectory,
+      properties: ["openDirectory", "createDirectory"],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+
+    videoDirectory = result.filePaths[0];
+    return videoDirectory;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.scanAudioLibrary, async () => {
+    return scanAudioSnapshot();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.scanVideoLibrary, async () => {
+    return scanVideoSnapshot();
   });
 
   ipcMain.handle(

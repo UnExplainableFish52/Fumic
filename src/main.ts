@@ -26,7 +26,8 @@ interface ShellState {
   repeatMode: RepeatMode;
   shuffleEnabled: boolean;
   dataDirectoryLabel: string;
-  libraryDirectoryLabel: string;
+  audioDirectoryLabel: string;
+  videoDirectoryLabel: string;
   actionLog: string;
 }
 
@@ -59,7 +60,8 @@ const state: ShellState = {
   repeatMode: "all",
   shuffleEnabled: false,
   dataDirectoryLabel: "Not selected yet",
-  libraryDirectoryLabel: "Not selected yet",
+  audioDirectoryLabel: "Not selected yet",
+  videoDirectoryLabel: "Not selected yet",
   actionLog: "Ready.",
 };
 
@@ -79,6 +81,8 @@ let visualizerAnimationId: number | null = null;
 let visualizerControlsTimer: ReturnType<typeof setTimeout> | null = null;
 let visualizerControlsVisible = true;
 let visualizerArtImage: HTMLImageElement | null = null;
+let videoLibraryScanned = false;
+let vizSmoothedIntensity = 0;
 let visualizerArtSrc = "";
 
 /* ── Inline SVG Icons for Transport ── */
@@ -493,83 +497,139 @@ function drawVisualizerFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   const cx = W / 2;
   const cy = H * 0.45;
   const dpr = window.devicePixelRatio || 1;
+  const time = performance.now() / 1000;
+  const minDim = Math.min(W, H);
 
   const bufferLength = analyserNode ? analyserNode.frequencyBinCount : 128;
   const dataArray = new Uint8Array(bufferLength);
   if (analyserNode) analyserNode.getByteFrequencyData(dataArray);
 
-  /* Background */
-  ctx.fillStyle = "#08081a";
+  /* ── Calculate overall intensity (average of all bins) ── */
+  let rawSum = 0;
+  for (let i = 0; i < bufferLength; i++) rawSum += dataArray[i];
+  const rawIntensity = rawSum / (bufferLength * 255);
+  /* Exponential smoothing for fluid motion */
+  vizSmoothedIntensity = vizSmoothedIntensity * 0.88 + rawIntensity * 0.12;
+  const intensity = vizSmoothedIntensity;
+
+  /* ── Background ── */
+  ctx.fillStyle = "#050510";
   ctx.fillRect(0, 0, W, H);
 
-  /* Pulsing center glow driven by bass */
-  const bassAvg = (dataArray[0] + dataArray[1] + dataArray[2] + dataArray[3]) / (4 * 255);
-  const glowR = Math.min(W, H) * (0.38 + bassAvg * 0.12);
-  const bgGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
-  bgGlow.addColorStop(0, `rgba(120, 40, 200, ${0.08 + bassAvg * 0.14})`);
-  bgGlow.addColorStop(0.5, `rgba(60, 30, 160, ${0.03 + bassAvg * 0.06})`);
-  bgGlow.addColorStop(1, "transparent");
-  ctx.fillStyle = bgGlow;
+  /* Pulsing ambient glow */
+  const ambientRadius = minDim * (0.5 + intensity * 0.2);
+  const ambientGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, ambientRadius);
+  ambientGlow.addColorStop(0, `rgba(0, 220, 200, ${0.04 + intensity * 0.08})`);
+  ambientGlow.addColorStop(0.3, `rgba(100, 0, 255, ${0.03 + intensity * 0.06})`);
+  ambientGlow.addColorStop(0.6, `rgba(255, 0, 180, ${0.02 + intensity * 0.04})`);
+  ambientGlow.addColorStop(1, "transparent");
+  ctx.fillStyle = ambientGlow;
   ctx.fillRect(0, 0, W, H);
 
-  const innerRadius = Math.min(W, H) * 0.12;
-  const maxBarLen = Math.min(W, H) * 0.25;
-  const barCount = 120;
+  /* ── Dimensions ── */
+  const artRadius = minDim * 0.16;
+  const ringGap = minDim * 0.035;
+  const baseRingRadius = artRadius + ringGap;
+  const maxExpansion = minDim * 0.06;
+  const pulseAmplitude = minDim * 0.008;
+  const pulse = Math.sin(time * 3.5) * pulseAmplitude;
+  const dynamicRingRadius = baseRingRadius + intensity * maxExpansion + pulse;
+  const baseThickness = 4 * dpr;
+  const dynamicThickness = baseThickness + intensity * 12 * dpr;
 
-  /* Circular frequency bars */
-  ctx.save();
-  ctx.translate(cx, cy);
+  /* ── Ring segments count for smooth wave effect ── */
+  const segmentCount = 200;
 
-  for (let i = 0; i < barCount; i++) {
-    const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
-    const di = Math.floor((i / barCount) * bufferLength);
-    const value = dataArray[di] / 255;
-    const barLen = Math.max(2 * dpr, value * maxBarLen);
+  /* Create a subtle wave pattern on the ring driven by intensity */
+  const waveCount = 6;
+  const waveSpeed = 2.2;
+  const waveAmplitude = intensity * minDim * 0.018;
 
-    const hue = 300 - (i / barCount) * 120;
-    const sat = 75 + value * 25;
-    const lit = 40 + value * 30;
+  /* Slowly rotating color offset for dynamism */
+  const colorRotation = time * 0.15;
 
+  /* ── Draw glowing ring (3 layers for neon glow) ── */
+  const glowLayers = [
+    { blur: 40 * dpr, alpha: 0.15 + intensity * 0.15, widthMul: 3.0 },
+    { blur: 18 * dpr, alpha: 0.3 + intensity * 0.2, widthMul: 1.8 },
+    { blur: 4 * dpr, alpha: 0.7 + intensity * 0.3, widthMul: 1.0 },
+  ];
+
+  for (const layer of glowLayers) {
     ctx.save();
-    ctx.rotate(angle);
+    ctx.shadowBlur = layer.blur;
+    ctx.lineWidth = dynamicThickness * layer.widthMul;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
-    ctx.shadowBlur = value * 18 * dpr;
-    ctx.shadowColor = `hsla(${hue}, ${sat}%, ${lit}%, 0.5)`;
+    /* Draw the ring as connected segments with wave variation */
+    ctx.beginPath();
+    for (let i = 0; i <= segmentCount; i++) {
+      const t = i / segmentCount;
+      const angle = t * Math.PI * 2 - Math.PI / 2;
+      const wave = Math.sin(angle * waveCount + time * waveSpeed) * waveAmplitude;
+      const r = dynamicRingRadius + wave;
+      const x = cx + Math.cos(angle) * r;
+      const y = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
 
-    const bw = Math.max(1.5 * dpr, ((2 * Math.PI * innerRadius) / barCount) * 0.6);
-    ctx.fillStyle = `hsl(${hue}, ${sat}%, ${lit}%)`;
-    ctx.fillRect(innerRadius, -bw / 2, barLen, bw);
+    /* Conic gradient for rainbow/cyan/teal Trap Nation look */
+    const gradient = ctx.createConicGradient(colorRotation, cx, cy);
+    gradient.addColorStop(0, `rgba(0, 255, 210, ${layer.alpha})`);
+    gradient.addColorStop(0.12, `rgba(0, 200, 255, ${layer.alpha})`);
+    gradient.addColorStop(0.25, `rgba(120, 0, 255, ${layer.alpha})`);
+    gradient.addColorStop(0.37, `rgba(255, 0, 200, ${layer.alpha})`);
+    gradient.addColorStop(0.5, `rgba(255, 80, 80, ${layer.alpha})`);
+    gradient.addColorStop(0.62, `rgba(255, 200, 0, ${layer.alpha})`);
+    gradient.addColorStop(0.75, `rgba(0, 255, 120, ${layer.alpha})`);
+    gradient.addColorStop(0.87, `rgba(0, 220, 255, ${layer.alpha})`);
+    gradient.addColorStop(1, `rgba(0, 255, 210, ${layer.alpha})`);
 
+    ctx.strokeStyle = gradient;
+    ctx.shadowColor = `rgba(0, 220, 200, ${layer.alpha * 0.6})`;
+    ctx.stroke();
     ctx.restore();
   }
 
-  ctx.restore();
-
-  /* Center disc — album art or gradient */
+  /* ── Inner glow ring (subtle white highlight at art boundary) ── */
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, innerRadius - 2 * dpr, 0, Math.PI * 2);
+  ctx.arc(cx, cy, artRadius + 2 * dpr, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.06 + intensity * 0.08})`;
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.shadowBlur = 12 * dpr;
+  ctx.shadowColor = `rgba(0, 255, 210, ${0.1 + intensity * 0.15})`;
+  ctx.stroke();
+  ctx.restore();
+
+  /* ── Center disc - album art or gradient ── */
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, artRadius, 0, Math.PI * 2);
   ctx.closePath();
   ctx.clip();
 
   if (visualizerArtImage && visualizerArtImage.complete && visualizerArtImage.naturalWidth > 0) {
-    const sz = (innerRadius - 2 * dpr) * 2;
+    const sz = artRadius * 2;
     ctx.drawImage(visualizerArtImage, cx - sz / 2, cy - sz / 2, sz, sz);
   } else {
-    const discG = ctx.createRadialGradient(cx, cy, 0, cx, cy, innerRadius);
-    discG.addColorStop(0, `rgba(180, 100, 255, ${0.6 + bassAvg * 0.3})`);
-    discG.addColorStop(0.6, `rgba(100, 60, 200, ${0.4 + bassAvg * 0.2})`);
-    discG.addColorStop(1, "rgba(40, 20, 100, 0.8)");
+    const discG = ctx.createRadialGradient(cx, cy, 0, cx, cy, artRadius);
+    discG.addColorStop(0, `rgba(0, 220, 200, ${0.5 + intensity * 0.3})`);
+    discG.addColorStop(0.5, `rgba(100, 0, 255, ${0.3 + intensity * 0.2})`);
+    discG.addColorStop(1, `rgba(20, 10, 40, 0.9)`);
     ctx.fillStyle = discG;
-    ctx.fillRect(cx - innerRadius, cy - innerRadius, innerRadius * 2, innerRadius * 2);
+    ctx.fillRect(cx - artRadius, cy - artRadius, artRadius * 2, artRadius * 2);
   }
   ctx.restore();
 
-  /* Ring border */
+  /* ── Art border ring ── */
   ctx.beginPath();
-  ctx.arc(cx, cy, innerRadius - 2 * dpr, 0, Math.PI * 2);
-  ctx.strokeStyle = `rgba(200, 160, 255, ${0.25 + bassAvg * 0.2})`;
-  ctx.lineWidth = 2 * dpr;
+  ctx.arc(cx, cy, artRadius, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.12 + intensity * 0.12})`;
+  ctx.lineWidth = 1.5 * dpr;
   ctx.stroke();
 
   visualizerAnimationId = requestAnimationFrame(() => drawVisualizerFrame(canvas, ctx));
@@ -675,11 +735,19 @@ function renderSettingsView() {
         </article>
 
         <article class="setting-card">
-          <p class="meta-label">Media Library</p>
-          <p class="meta-value">Current library folder:</p>
-          <p class="meta-value strong" id="library-directory">${escapeHtml(state.libraryDirectoryLabel)}</p>
-          <button id="pick-library-dir" class="button secondary" type="button">Change Media Folder</button>
-          <button id="manual-refresh" class="button secondary" type="button">Manual Refresh</button>
+          <p class="meta-label">Audio Library</p>
+          <p class="meta-value">Current audio folder:</p>
+          <p class="meta-value strong" id="audio-directory">${escapeHtml(state.audioDirectoryLabel)}</p>
+          <button id="pick-audio-dir" class="button secondary" type="button">Change Audio Folder</button>
+          <button id="refresh-audio" class="button secondary" type="button">Refresh Audio Library</button>
+        </article>
+
+        <article class="setting-card">
+          <p class="meta-label">Video Library</p>
+          <p class="meta-value">Current video folder:</p>
+          <p class="meta-value strong" id="video-directory">${escapeHtml(state.videoDirectoryLabel)}</p>
+          <button id="pick-video-dir" class="button secondary" type="button">Change Video Folder</button>
+          <button id="refresh-video" class="button secondary" type="button">Refresh Video Library</button>
         </article>
 
         <article class="setting-card">
@@ -760,6 +828,7 @@ function renderInfoView() {
           <div class="shortcut-entry"><span class="shortcut-key">Ctrl + A</span><span class="shortcut-desc">Switch to Audio Tab</span></div>
           <div class="shortcut-entry"><span class="shortcut-key">Ctrl + V</span><span class="shortcut-desc">Switch to Video Tab</span></div>
           <div class="shortcut-entry"><span class="shortcut-key">Ctrl + F</span><span class="shortcut-desc">Toggle Full Screen Player</span></div>
+          <div class="shortcut-entry"><span class="shortcut-key">Ctrl + R</span><span class="shortcut-desc">Refresh Current Library</span></div>
           <div class="shortcut-entry"><span class="shortcut-key">Ctrl + E</span><span class="shortcut-desc">Toggle Audio Visualizer</span></div>
         </div>
       </div>
@@ -973,13 +1042,32 @@ function wireUiEvents() {
       return;
     }
 
-    if (button.id === "pick-library-dir") {
-      void selectLibraryDirectory();
+    if (button.id === "pick-audio-dir") {
+      void selectAudioDirectory();
+      return;
+    }
+
+    if (button.id === "pick-video-dir") {
+      void selectVideoDirectory();
+      return;
+    }
+
+    if (button.id === "refresh-audio") {
+      void refreshAudioLibrary("Audio library refreshed.");
+      return;
+    }
+
+    if (button.id === "refresh-video") {
+      void refreshVideoLibrary("Video library refreshed.");
       return;
     }
 
     if (button.id === "manual-refresh") {
-      void refreshLibrary("Manual refresh complete.");
+      if (state.activeTab === "audio") {
+        void refreshAudioLibrary("Audio library refreshed.");
+      } else {
+        void refreshVideoLibrary("Video library refreshed.");
+      }
       return;
     }
 
@@ -1113,8 +1201,10 @@ async function initializeApp() {
 
   bootstrap = await window.appApi.getBootstrap();
   state.dataDirectoryLabel = bootstrap.dataDirectory;
-  state.libraryDirectoryLabel = bootstrap.libraryDirectory;
-  await refreshLibrary("Library indexed.");
+  state.audioDirectoryLabel = bootstrap.audioDirectory;
+  state.videoDirectoryLabel = bootstrap.videoDirectory;
+  /* Only scan audio on launch; video scans lazily when the user switches tabs */
+  await refreshAudioLibrary("Audio library indexed.");
 }
 
 function switchView(view: AppView) {
@@ -1144,25 +1234,50 @@ function switchTab(tab: LibraryTab) {
   state.activeTab = tab;
   state.activeView = "home";
   state.selectedIndex = 0;
-  renderShell();
+
+  /* Lazy-scan video library on first access */
+  if (tab === "video" && !videoLibraryScanned) {
+    void refreshVideoLibrary("Video library indexed.");
+  } else {
+    renderShell();
+  }
+
   setActionLog(`Switched to ${tab} tab.`);
 }
 
-async function refreshLibrary(successMessage: string) {
-  setActionLog("Scanning media library...");
+async function refreshAudioLibrary(successMessage: string) {
+  setActionLog("Scanning audio library...");
 
   try {
-    const snapshot = await window.appApi.scanLibrary();
-    mediaRows.audio = snapshot.items.filter((item) => item.kind === "audio");
-    mediaRows.video = snapshot.items.filter((item) => item.kind === "video");
-    state.libraryDirectoryLabel = snapshot.rootDirectory;
+    const snapshot = await window.appApi.scanAudioLibrary();
+    mediaRows.audio = snapshot.items;
+    state.audioDirectoryLabel = snapshot.rootDirectory;
     normalizeSelectedIndex();
     renderShell();
     syncTransportState();
     setActionLog(successMessage);
   } catch {
     setActionLog(
-      "Library scan failed. Please check folder permissions and try again.",
+      "Audio library scan failed. Please check folder permissions and try again.",
+    );
+  }
+}
+
+async function refreshVideoLibrary(successMessage: string) {
+  setActionLog("Scanning video library...");
+
+  try {
+    const snapshot = await window.appApi.scanVideoLibrary();
+    mediaRows.video = snapshot.items;
+    state.videoDirectoryLabel = snapshot.rootDirectory;
+    videoLibraryScanned = true;
+    normalizeSelectedIndex();
+    renderShell();
+    syncTransportState();
+    setActionLog(successMessage);
+  } catch {
+    setActionLog(
+      "Video library scan failed. Please check folder permissions and try again.",
     );
   }
 }
@@ -1227,15 +1342,26 @@ async function selectDataDirectory() {
   setActionLog("Data directory updated.");
 }
 
-async function selectLibraryDirectory() {
-  const pickedPath = await window.appApi.pickLibraryDirectory();
+async function selectAudioDirectory() {
+  const pickedPath = await window.appApi.pickAudioDirectory();
   if (!pickedPath) {
-    setActionLog("Media folder selection canceled.");
+    setActionLog("Audio folder selection canceled.");
     return;
   }
 
-  state.libraryDirectoryLabel = pickedPath;
-  await refreshLibrary("Media folder updated and indexed.");
+  state.audioDirectoryLabel = pickedPath;
+  await refreshAudioLibrary("Audio folder updated and indexed.");
+}
+
+async function selectVideoDirectory() {
+  const pickedPath = await window.appApi.pickVideoDirectory();
+  if (!pickedPath) {
+    setActionLog("Video folder selection canceled.");
+    return;
+  }
+
+  state.videoDirectoryLabel = pickedPath;
+  await refreshVideoLibrary("Video folder updated and indexed.");
 }
 
 function updateCollectionOnly() {
@@ -1478,6 +1604,17 @@ function handleKeyboard(event: KeyboardEvent) {
   if (event.ctrlKey && event.key.toLowerCase() === "v") {
     event.preventDefault();
     switchTab("video");
+    return;
+  }
+
+  /* ── Ctrl + R  →  Refresh current tab's library ── */
+  if (event.ctrlKey && event.key.toLowerCase() === "r") {
+    event.preventDefault();
+    if (state.activeTab === "audio") {
+      void refreshAudioLibrary("Audio library refreshed.");
+    } else {
+      void refreshVideoLibrary("Video library refreshed.");
+    }
     return;
   }
 
