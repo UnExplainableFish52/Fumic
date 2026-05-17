@@ -4,7 +4,7 @@
 
 **The Magical Media Player (FOSS)**
 
-A beautifully crafted, offline-first, keyboard-driven media player for Windows — built with Electron.
+A beautifully crafted, offline-first, keyboard-driven media player for Windows — built with Electron & Flutter both releases.
 
 No ads. No telemetry. No nonsense. Just your music and videos, the way they should be.
 
