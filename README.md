@@ -1,4 +1,6 @@
 <div align="center">
+<img width="1245" height="683" alt="Screenshot 2026-05-19 183018" src="https://github.com/user-attachments/assets/69fff628-1369-4a5d-a1bf-2fa1052d0731" />
+  
 <img width="1919" height="1077" alt="fumic_preview" src="https://github.com/user-attachments/assets/ee93be45-5d8f-4724-9cf7-8163648de261" />
 
 <img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/47e4599b-5b06-4d46-995c-3ebb6ef3ef20" />
