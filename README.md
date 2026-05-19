@@ -1,4 +1,7 @@
 <div align="center">
+<img width="1919" height="1077" alt="fumic_preview" src="https://github.com/user-attachments/assets/ee93be45-5d8f-4724-9cf7-8163648de261" />
+
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/47e4599b-5b06-4d46-995c-3ebb6ef3ef20" />
 
 # 🎵 Fumic
 
