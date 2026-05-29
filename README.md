@@ -1,179 +1,120 @@
-<div align="center">
+# Fumic
 
-# 🎵 Fumic
+**Fumic is an open-source, offline-first, keyboard-driven media player for Windows, built with Flutter.**
 
-**The Magical Media Player (FOSS)**
-
-A beautifully crafted, offline-first, keyboard-driven media player for Windows — built with Electron.
-
-No ads. No telemetry. No nonsense. Just your music and videos, the way they should be.
+Fumic is for people who want a fast local music and video player without accounts, ads, telemetry, streaming lock-in, or unnecessary background services. The current actively maintained Fumic media player is the Flutter version, focused on responsive Windows playback, keyboard-first navigation, playlists, local artwork, and a clean desktop interface.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078D6?logo=windows)](https://github.com/UnExplainableFish52/Fumic)
-[![Made with Electron](https://img.shields.io/badge/Made%20with-Electron-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://github.com/UnExplainableFish52/Fumic)
+[![Built with Flutter](https://img.shields.io/badge/Built%20with-Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
 
-</div>
+## About
 
----
+Fumic is a desktop media player designed around speed, clarity, and keyboard control. It focuses on local playback and keeps the app offline-first with no telemetry or cloud dependency.
 
-## ✨ Features
+## Features
 
-| | Feature | Description |
-|---|---|---|
-| ⌨️ | **100% Keyboard Control** | Navigate, play, seek, and manage everything without ever touching the mouse |
-| 🆓 | **FOSS — Free & Open Source** | Licensed under GPL v3. Free forever, no strings attached |
-| 📁 | **Multiple Formats** | Supports `.mp3`, `.mp4`, `.opus`, and `.wav` out of the box |
-| 🔒 | **100% Offline** | Zero telemetry, zero analytics, zero internet required |
-| 💪 | **Performance Playback** | Smooth audio & video playback powered by native HTML5 media |
-| ✨ | **Minimalistic & Aesthetic** | Dark-themed, premium UI with micro-animations and glassmorphism |
-| 🎛️ | **Full Media Controls** | Shuffle, loop, seek, speed control, volume — all at your fingertips |
-| ⚡ | **Fast & Reliable** | Instant library scanning, lazy-loaded metadata, zero lag |
+- Open-source media player for Windows, licensed under GPLv3.
+- Offline-first behavior with local library scanning and no account requirement.
+- Keyboard-driven controls for playback, navigation, search, volume, playlists, and fullscreen workflows.
+- Flutter desktop UI for a responsive native-feeling Windows media player experience.
+- Local audio and video playback through `media_kit`.
+- Playlist support with a protected `Favourites` playlist and user-created playlists.
+- Custom visualizer background options and local app settings.
+- Artwork and metadata handling for common local media formats.
+- Shuffle, loop, seek, mute, playback speed, and queue navigation.
+- No ads, no telemetry, and no cloud sync requirement.
 
----
+## Install
 
-## ⌨️ Keyboard Shortcuts
+1. Open the GitHub Releases page and look at the right sidebar for the latest release.
+2. Click the latest release, scroll down, and download the Windows installer or portable ZIP.
+3. If your OS is not listed in the release assets, build the app from source instead.
 
-Fumic is designed to be used entirely from the keyboard. Here's the complete shortcut reference:
+Releases: https://github.com/UnExplainableFish52/Fumic/releases
 
-### Playback
+After installation, review the keyboard shortcuts below to navigate quickly.
 
-| Shortcut | Action |
-|---|---|
-| `Space` | Play / Pause |
-| `Ctrl + Enter` | Play Selected Track |
-| `← / →` | Seek 5 seconds |
-| `Shift + ← / →` | Seek 10 seconds |
-| `Ctrl + ← / →` | Previous / Next Track |
-| `Shift + < / >` | Playback Speed Down / Up |
+By default, Fumic scans your Windows Music and Videos folders for media files. You can change this in Settings and add multiple folders.
 
-### Controls
+## Keyboard Shortcuts
+
+Fumic is designed around fast keyboard use. Common shortcuts include:
 
 | Shortcut | Action |
-|---|---|
-| `Ctrl + ↑ / ↓` | Volume Up / Down |
-| `Ctrl + M` | Mute / Unmute |
-| `Shift + S` | Toggle Shuffle |
-| `Shift + L` | Toggle Loop |
-
-### Navigation
-
-| Shortcut | Action |
-|---|---|
-| `↑ / ↓` | Navigate Media List |
-| `Ctrl + K` | Focus Search |
-| `Escape` | Unfocus Search / Exit Player |
+| --- | --- |
+| `Space` | Play or pause |
+| `Ctrl + Enter` | Play selected media |
+| `Ctrl + B` | Add selected or current media to a playlist |
+| `Ctrl + K` | Focus search |
 | `Ctrl + H` | Go to Home |
+| `Ctrl + A` | Go to Audio |
+| `Ctrl + V` | Go to Video |
+| `Ctrl + P` | Go to Playlists |
 | `Ctrl + S` | Go to Settings |
+| `Ctrl + E` | Go to Equalizer |
 | `Ctrl + I` | Go to Info |
-| `Ctrl + A` | Switch to Audio Tab |
-| `Ctrl + V` | Switch to Video Tab |
-| `Ctrl + F` | Toggle Full Screen Player |
+| `Left` / `Right` | Seek backward or forward 5 seconds |
+| `Shift + Left` / `Shift + Right` | Seek backward or forward 10 seconds |
+| `Ctrl + Left` / `Ctrl + Right` | Previous or next track |
+| `Ctrl + Up` / `Ctrl + Down` | Volume up or down |
+| `Ctrl + M` | Mute or unmute |
+| `Shift + S` | Toggle shuffle |
+| `Shift + L` | Toggle loop |
+| `Shift + <` / `Shift + >` | Cycle playback speed |
+| `Ctrl + F` | Toggle fullscreen player |
+| `Ctrl + W` | Close Fumic |
+| `Esc` | Exit focus on current control |
 
----
+## Build From Source
 
-## 🚀 Getting Started
+### Requirements
 
-### Prerequisites
+- Flutter with Windows desktop support enabled.
+- Visual Studio Build Tools with the Desktop development with C++ workload.
+- Windows 10 or Windows 11.
 
-- [Node.js](https://nodejs.org/) (v18 or later)
-- npm (comes with Node.js)
+### Development
 
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/UnExplainableFish52/Fumic.git
-cd Fumic
-
-# Install dependencies
-npm install
-
-# Run in development mode
-npm run dev
+```powershell
+flutter pub get
+flutter run -d windows
 ```
 
-### Building for Production
+### Release Build
 
-```bash
-npm run build
+```powershell
+flutter build windows --release --build-name=2.6.2 --build-number=262
 ```
 
-The installer will be generated in the `release/` directory.
+The Windows release output is generated in:
 
----
+```text
+build\windows\x64\runner\Release
+```
 
-## ❓ FAQ
+That folder must be distributed as a complete folder or packaged into an installer/portable ZIP. Do not upload only `Fumic.exe`; the Flutter Windows app also needs its `data` folder and runtime DLLs.
 
-### Why Fumic?
 
-Because no matter how much you look for, you won't find anything like this on the internet. A truly offline, keyboard-first, no-nonsense media player that just works.
+## Contributing
 
-Even if you do find something close, they will be behind paywalls or loaded with bloat you never asked for.
+If you find Fumic helpful, please leave a star on the repository.
 
-So Fumic is a lifesaver for you all. It was built out of genuine frustration and love for clean software.
+Bug reports, feature suggestions, UI feedback, documentation improvements, and pull requests are welcome.
 
-### Why FOSS?
+1. Fork the repository.
+2. Create a feature branch.
+3. Make a focused change.
+4. Test the app.
+5. Open a pull request so it can be reviewed and merged if it adds value.
 
-FOSS means Free Open Source Software. It's not just a license, it's a philosophy.
+## License
 
-Grew up using lots of tools and stuff, and now when I am able to contribute to the community, it's my chance — and so I did. Giving back feels right, and everyone deserves good tools without strings attached.
+Fumic is intended to stay free and open source under the GNU General Public License v3.0.
 
-### Who is the developer?
+## Contact
 
-**Legally responsible developer:** TheIdealDev52 aka Saksham Sharma, along with Shelly (AI Agent).
-
-A solo developer who believes software should be simple, fast, and free. Shelly helped bring the vision to life with precision and speed.
-
-### What license?
-
-**GNU General Public License v3.0**
-
-In simple terms:
-- ✅ Feel free to use
-- ✅ Feel free to modify
-- ✅ Feel free to share
-- 🚫 Never allowed to redistribute as proprietary — always must stay FOSS
-
-The whole point is to keep it open forever. No one should lock this down behind a paywall.
-
----
-
-## 🛣️ Roadmap
-
-I'm open to contributions! Here are some upcoming features on the horizon:
-
-- 🎶 **Music Visualizer** — real-time audio visualization during playback
-- 📋 **Playlists** — create, save, and manage custom playlists
-- 🎨 **Better UI** — continuous refinement of the interface and user experience
-- 🐛 **Minor Bug Fixes** — polishing the rough edges
-
-Have more ideas? I'd love to hear them!
-
----
-
-## 🤝 Contributing
-
-Contributions, bug reports, and feature suggestions are always welcome. Every bit of contribution counts.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m "Add amazing feature"`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-For further discussion, ideas, or just to say hi:
-
-- **GitHub:** [@UnExplainableFish52](https://github.com/UnExplainableFish52)
-- **Email:** [sharma@saksham.info.np](mailto:sharma@saksham.info.np) · [contactsaksham52@gmail.com](mailto:contactsaksham52@gmail.com) · [info@sakshamsharma.com.np](mailto:info@sakshamsharma.com.np)
-
-If you find Fumic useful, consider giving it a ⭐ — it genuinely helps with visibility and motivation!
-
----
-
-<div align="center">
-
-**Built with ❤️ by Saksham Sharma**
-
-*Because good software should be free.*
-
-</div>
+- GitHub: https://github.com/UnExplainableFish52
+- Email: sharma@saksham.info.np
+- Email: contactsaksham52@gmail.com
+- Email: info@sakshamsharma.com.np
