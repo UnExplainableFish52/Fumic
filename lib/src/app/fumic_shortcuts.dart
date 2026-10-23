@@ -5,16 +5,24 @@ import '../models/fumic_page.dart';
 import '../models/media_kind.dart';
 
 Map<ShortcutActivator, Intent> fumicShortcuts({
+  FumicPage page = FumicPage.home,
   bool textInputFocused = false,
   bool searchFocused = false,
   bool visualizerOpen = false,
 }) {
   if (searchFocused) {
     return <ShortcutActivator, Intent>{
+      const SingleActivator(LogicalKeyboardKey.f11, includeRepeats: false):
+          const ToggleFullscreenIntent(),
       const SingleActivator(LogicalKeyboardKey.keyK, control: true):
           const FocusSearchIntent(),
       const SingleActivator(LogicalKeyboardKey.keyB, control: true):
           const AddSelectedToPlaylistIntent(),
+      const SingleActivator(
+        LogicalKeyboardKey.keyB,
+        control: true,
+        shift: true,
+      ): const AddSelectedToPlaylistIntent(),
       const SingleActivator(LogicalKeyboardKey.keyH, control: true):
           const PageIntent(FumicPage.home),
       const SingleActivator(LogicalKeyboardKey.keyP, control: true):
@@ -37,16 +45,25 @@ Map<ShortcutActivator, Intent> fumicShortcuts({
 
   if (textInputFocused) {
     return <ShortcutActivator, Intent>{
-      const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-          const FocusSearchIntent(),
-      const SingleActivator(LogicalKeyboardKey.keyH, control: true):
-          const PageIntent(FumicPage.home),
-      const SingleActivator(LogicalKeyboardKey.escape): const EscapeIntent(),
+      const SingleActivator(LogicalKeyboardKey.f11, includeRepeats: false):
+          const ToggleFullscreenIntent(),
     };
   }
 
-  return <ShortcutActivator, Intent>{
+  final shortcuts = <ShortcutActivator, Intent>{
+    const SingleActivator(LogicalKeyboardKey.f11, includeRepeats: false):
+        const ToggleFullscreenIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyE, includeRepeats: false):
+        const ToggleFullPlayerIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyI, includeRepeats: false):
+        const MinimizeAppIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyB, includeRepeats: false):
+        const TogglePlayerControlsIntent(),
     const SingleActivator(LogicalKeyboardKey.space): const TogglePlayIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyJ): const SeekIntent(-5),
+    const SingleActivator(LogicalKeyboardKey.keyK, includeRepeats: false):
+        const TogglePlayIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyL): const SeekIntent(5),
     const SingleActivator(LogicalKeyboardKey.digit0):
         const PercentageSeekIntent(0),
     const SingleActivator(LogicalKeyboardKey.digit1):
@@ -87,14 +104,6 @@ Map<ShortcutActivator, Intent> fumicShortcuts({
         const PercentageSeekIntent(0.8),
     const SingleActivator(LogicalKeyboardKey.numpad9):
         const PercentageSeekIntent(0.9),
-    const SingleActivator(LogicalKeyboardKey.enter, control: true):
-        const ActivateSelectedIntent(),
-    const SingleActivator(LogicalKeyboardKey.arrowDown): visualizerOpen
-        ? const AdjustVisualizerIntensityIntent(-1)
-        : const MoveSelectionIntent(1),
-    const SingleActivator(LogicalKeyboardKey.arrowUp): visualizerOpen
-        ? const AdjustVisualizerIntensityIntent(1)
-        : const MoveSelectionIntent(-1),
     const SingleActivator(LogicalKeyboardKey.arrowRight): const SeekIntent(5),
     const SingleActivator(LogicalKeyboardKey.arrowLeft): const SeekIntent(-5),
     const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
@@ -115,6 +124,8 @@ Map<ShortcutActivator, Intent> fumicShortcuts({
         const RefreshLibraryIntent(),
     const SingleActivator(LogicalKeyboardKey.keyB, control: true):
         const AddSelectedToPlaylistIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyB, control: true, shift: true):
+        const AddSelectedToPlaylistIntent(),
     const SingleActivator(LogicalKeyboardKey.keyW, control: true):
         const QuitIntent(),
     const SingleActivator(LogicalKeyboardKey.keyH, control: true):
@@ -129,16 +140,22 @@ Map<ShortcutActivator, Intent> fumicShortcuts({
         const TabIntent(MediaKind.audio),
     const SingleActivator(LogicalKeyboardKey.keyV, control: true):
         const TabIntent(MediaKind.video),
-    const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-        const ToggleFullPlayerIntent(),
+    const SingleActivator(
+      LogicalKeyboardKey.keyF,
+      control: true,
+      includeRepeats: false,
+    ): const ToggleFullPlayerIntent(),
     const SingleActivator(LogicalKeyboardKey.keyF, shift: true):
         const ToggleFullscreenIntent(),
-    const SingleActivator(LogicalKeyboardKey.keyE, control: true):
-        const ToggleVisualizerIntent(),
+    const SingleActivator(
+      LogicalKeyboardKey.keyE,
+      control: true,
+      includeRepeats: false,
+    ): const ToggleVisualizerIntent(),
     const SingleActivator(LogicalKeyboardKey.keyV):
         const ToggleVisualizerIntent(),
-    const SingleActivator(LogicalKeyboardKey.keyF):
-        const ToggleVisualizerFullscreenIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyF, includeRepeats: false):
+        const ToggleFullPlayerIntent(),
     const SingleActivator(LogicalKeyboardKey.keyG):
         const CycleVisualizerQualityIntent(),
     const SingleActivator(LogicalKeyboardKey.keyP):
@@ -155,6 +172,63 @@ Map<ShortcutActivator, Intent> fumicShortcuts({
         const PlaybackSpeedIntent(0.1),
     const SingleActivator(LogicalKeyboardKey.escape): const EscapeIntent(),
   };
+
+  if (visualizerOpen) {
+    shortcuts.remove(
+      const SingleActivator(LogicalKeyboardKey.keyB, control: true),
+    );
+    shortcuts.addAll({
+      const SingleActivator(
+        LogicalKeyboardKey.keyB,
+        control: true,
+        includeRepeats: false,
+      ): const TogglePlayerControlsIntent(),
+      const SingleActivator(LogicalKeyboardKey.arrowDown):
+          const AdjustVisualizerIntensityIntent(-1),
+      const SingleActivator(LogicalKeyboardKey.arrowUp):
+          const AdjustVisualizerIntensityIntent(1),
+    });
+    return shortcuts;
+  }
+
+  if (page == FumicPage.playlists) {
+    shortcuts.addAll({
+      const SingleActivator(LogicalKeyboardKey.enter):
+          const ActivateSelectedPlaylistIntent(),
+      const SingleActivator(LogicalKeyboardKey.numpadEnter):
+          const ActivateSelectedPlaylistIntent(),
+      const SingleActivator(LogicalKeyboardKey.enter, control: true):
+          const ActivateSelectedPlaylistIntent(),
+      const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true):
+          const ActivateSelectedPlaylistIntent(),
+      const SingleActivator(LogicalKeyboardKey.arrowDown):
+          const MovePlaylistSelectionIntent(1),
+      const SingleActivator(LogicalKeyboardKey.arrowUp):
+          const MovePlaylistSelectionIntent(-1),
+      const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+          const StartCreatePlaylistIntent(),
+      const SingleActivator(LogicalKeyboardKey.f2):
+          const RenameSelectedPlaylistIntent(),
+      const SingleActivator(LogicalKeyboardKey.delete):
+          const DeleteSelectedPlaylistIntent(),
+    });
+    return shortcuts;
+  }
+
+  if (page == FumicPage.home) {
+    shortcuts.addAll({
+      const SingleActivator(LogicalKeyboardKey.enter, control: true):
+          const ActivateSelectedIntent(),
+      const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true):
+          const ActivateSelectedIntent(),
+      const SingleActivator(LogicalKeyboardKey.arrowDown):
+          const MoveSelectionIntent(1),
+      const SingleActivator(LogicalKeyboardKey.arrowUp):
+          const MoveSelectionIntent(-1),
+    });
+  }
+
+  return shortcuts;
 }
 
 class FumicShortcutEntry {
@@ -170,6 +244,21 @@ class FumicShortcutEntry {
 }
 
 const fumicShortcutCatalog = [
+  FumicShortcutEntry(
+    keys: 'I',
+    action: 'Minimize Fumic to the taskbar',
+    section: 'Interface',
+  ),
+  FumicShortcutEntry(
+    keys: 'B / Ctrl + B in full player',
+    action: 'Show / hide full-player controls (also in Settings > Playback)',
+    section: 'Interface',
+  ),
+  FumicShortcutEntry(
+    keys: 'J / K / L',
+    action: 'Back 5 seconds / Play or Pause / Forward 5 seconds',
+    section: 'Playback',
+  ),
   FumicShortcutEntry(
     keys: 'Space',
     action: 'Play / Pause',
@@ -272,7 +361,7 @@ const fumicShortcutCatalog = [
   ),
   FumicShortcutEntry(
     keys: 'Ctrl + F',
-    action: 'Toggle Full Screen Player',
+    action: 'Toggle video / visualizer player and library',
     section: 'Interface',
   ),
   FumicShortcutEntry(
@@ -281,9 +370,34 @@ const fumicShortcutCatalog = [
     section: 'Library',
   ),
   FumicShortcutEntry(
-    keys: 'Ctrl + B',
+    keys: 'Ctrl + B in library / Ctrl + Shift + B anywhere',
     action: 'Add selected item to playlist',
     section: 'Library',
+  ),
+  FumicShortcutEntry(
+    keys: 'Ctrl + N in Playlists',
+    action: 'Create playlist',
+    section: 'Playlists',
+  ),
+  FumicShortcutEntry(
+    keys: 'F2 in Playlists',
+    action: 'Rename selected playlist',
+    section: 'Playlists',
+  ),
+  FumicShortcutEntry(
+    keys: 'Delete in Playlists',
+    action: 'Confirm delete selected playlist',
+    section: 'Playlists',
+  ),
+  FumicShortcutEntry(
+    keys: 'Enter in Playlists',
+    action: 'Play selected playlist',
+    section: 'Playlists',
+  ),
+  FumicShortcutEntry(
+    keys: 'Up / Down in Playlists',
+    action: 'Move selected playlist',
+    section: 'Playlists',
   ),
   FumicShortcutEntry(
     keys: 'Ctrl + W',
@@ -292,7 +406,7 @@ const fumicShortcutCatalog = [
   ),
   FumicShortcutEntry(
     keys: 'Ctrl + E',
-    action: 'Toggle Audio Visualizer',
+    action: 'Toggle video / visualizer player and library',
     section: 'Interface',
   ),
   FumicShortcutEntry(
@@ -301,8 +415,8 @@ const fumicShortcutCatalog = [
     section: 'Interface',
   ),
   FumicShortcutEntry(
-    keys: 'F',
-    action: 'Fullscreen Visualizer',
+    keys: 'F / E',
+    action: 'Toggle video / visualizer player and library',
     section: 'Interface',
   ),
   FumicShortcutEntry(
@@ -321,8 +435,8 @@ const fumicShortcutCatalog = [
     section: 'Interface',
   ),
   FumicShortcutEntry(
-    keys: 'Shift + F',
-    action: 'Toggle Fullscreen',
+    keys: 'F11 / Shift + F',
+    action: 'Toggle window fullscreen',
     section: 'Interface',
   ),
 ];
@@ -337,6 +451,12 @@ class ActivateSelectedIntent extends Intent {
 
 class MoveSelectionIntent extends Intent {
   const MoveSelectionIntent(this.delta);
+
+  final int delta;
+}
+
+class MovePlaylistSelectionIntent extends Intent {
+  const MovePlaylistSelectionIntent(this.delta);
 
   final int delta;
 }
@@ -377,6 +497,22 @@ class RefreshLibraryIntent extends Intent {
 
 class AddSelectedToPlaylistIntent extends Intent {
   const AddSelectedToPlaylistIntent();
+}
+
+class StartCreatePlaylistIntent extends Intent {
+  const StartCreatePlaylistIntent();
+}
+
+class RenameSelectedPlaylistIntent extends Intent {
+  const RenameSelectedPlaylistIntent();
+}
+
+class DeleteSelectedPlaylistIntent extends Intent {
+  const DeleteSelectedPlaylistIntent();
+}
+
+class ActivateSelectedPlaylistIntent extends Intent {
+  const ActivateSelectedPlaylistIntent();
 }
 
 class QuitIntent extends Intent {
@@ -421,8 +557,12 @@ class ToggleVisualizerIntent extends Intent {
   const ToggleVisualizerIntent();
 }
 
-class ToggleVisualizerFullscreenIntent extends Intent {
-  const ToggleVisualizerFullscreenIntent();
+class MinimizeAppIntent extends Intent {
+  const MinimizeAppIntent();
+}
+
+class TogglePlayerControlsIntent extends Intent {
+  const TogglePlayerControlsIntent();
 }
 
 class CycleVisualizerQualityIntent extends Intent {

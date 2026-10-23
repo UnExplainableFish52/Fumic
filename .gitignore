@@ -27,23 +27,36 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
-.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-.metadata
 /build/
 /coverage/
-/dist/
 
-# Local env/secrets
+# Local releases, agent state, and feedback (not application source)
+/dist/
+/.agents/
+/.codex/
+/.local/
+/Screenshot*.png
+/log.txt
+/voice.md
+
+# Temporary files and Windows folder metadata
+*.tmp
+*.bak
+desktop.ini
+Thumbs.db
+
+# Local credentials and signing material
 .env
 .env.*
-*.pem
+!.env.example
+*.pfx
 *.p12
 *.key
-*.crt
-*.cer
+*.keystore
+*.jks
 
 # Symbolication related
 app.*.symbols

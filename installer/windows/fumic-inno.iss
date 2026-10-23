@@ -1,15 +1,23 @@
-; Inno Setup script for Fumic 2.6.2.
+; Inno Setup script for Fumic - Magical Media Player 2.6.3.
 ; Build the Flutter release before compiling this installer:
-; flutter build windows --release --build-name=2.6.2 --build-number=262
+; flutter build windows --release --build-name=2.6.3 --build-number=0
 
 #define MyAppName "Fumic"
-#define MyAppVersion "2.6.2"
+#define MyAppFullName "Fumic - Magical Media Player"
+#define MyAppVersion "2.6.3"
 #define MyAppPublisher "Saksham Sharma"
-#define MyAppExeName "Fumic.exe"
+#define MyAppExeName "fumic.exe"
+
+; MSIX packaging temporarily changes the release directory. Compile this
+; installer before running msix:create, and reject incomplete runtime bundles.
+#if !FileExists("..\..\build\windows\x64\runner\Release\msvcp140.dll") || !FileExists("..\..\build\windows\x64\runner\Release\vcruntime140.dll") || !FileExists("..\..\build\windows\x64\runner\Release\vcruntime140_1.dll")
+  #error Required Visual C++ runtime DLLs are missing. Rebuild Windows before compiling this installer.
+#endif
 
 [Setup]
 AppId={{9D778CF7-64C7-47B8-A31B-1220295C5251}
-AppName={#MyAppName}
+AppName={#MyAppFullName}
+AppVerName={#MyAppFullName} {#MyAppVersion}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL=https://github.com/UnExplainableFish52/Fumic
@@ -19,8 +27,9 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=Fumic-Setup-2.6.2-windows-x64
+OutputBaseFilename=Fumic-Setup-2.6.3-windows-x64
 SetupIconFile=..\..\windows\runner\resources\app_icon.ico
+UninstallDisplayName={#MyAppFullName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes

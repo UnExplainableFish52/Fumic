@@ -1,12 +1,12 @@
-# Fumic Tech Stack
+# Fumic - Magical Media Player Tech Stack
 
-Fumic is a Flutter desktop media player built for Windows first. It is no longer an Electron app. The current version is designed around a native-feeling desktop UI, local media playback, offline library scanning, keyboard-first navigation, and a lightweight release footprint.
+Fumic - Magical Media Player is a Flutter desktop media player built for Windows first. It is no longer an Electron app. The current version is designed around a native-feeling desktop UI, local media playback, offline library scanning, keyboard-first navigation, and a lightweight release footprint.
 
 ## Short Answer
 
 If someone asks what Fumic is built with, say:
 
-> Fumic is built with Flutter and Dart for the desktop UI, media_kit for audio/video playback, local Dart services for scanning and metadata, Flutter CustomPainter for the visualizer, and a small native Windows C++ runner layer for fullscreen/window behavior.
+> Fumic - Magical Media Player is built with Flutter and Dart for the desktop UI, media_kit for audio/video playback, local Dart services for scanning and metadata, Flutter CustomPainter for the visualizer, and a small native Windows C++ runner layer for fullscreen/window behavior.
 
 ## Main Stack
 
@@ -84,19 +84,20 @@ This keeps the app fast, private, and usable without internet access.
 Current release version:
 
 ```text
-2.6.2+262
+2.6.3+263
 ```
 
 Meaning:
 
-- `2.6.2`: current public Flutter release version.
-- `262`: Windows build number used by Flutter.
+- `2.6.3`: current public Flutter release version.
+- `263`: Flutter package build number. Windows release packaging overrides the
+  executable suffix to `0` so it matches the Store version `2.6.3.0`.
 
 ## How To Explain Fumic To Developers
 
 Use this:
 
-> Fumic is a Flutter Windows desktop app using Dart for the application layer, media_kit for local audio/video playback, custom Dart services for metadata and artwork extraction, and a small native Win32 runner layer for fullscreen/window control. The UI is built as a keyboard-first dark desktop app with local JSON settings and cache files, no backend, no account system, and no web runtime.
+> Fumic - Magical Media Player is a Flutter Windows desktop app using Dart for the application layer, media_kit for local audio/video playback, custom Dart services for metadata and artwork extraction, and a small native Win32 runner layer for fullscreen/window control. The UI is built as a keyboard-first dark desktop app with local JSON settings and cache files, no backend, no account system, and no web runtime.
 
 ## Source References
 

@@ -1,15 +1,20 @@
 import 'visualizer_quality.dart';
+import 'visualizer_background.dart';
 
 class VisualizerSettings {
   const VisualizerSettings({
     this.enabled = true,
     this.performanceMode = false,
     this.showBackgroundImage = true,
-    this.backgroundIndex = 4,
+    this.backgroundIndex = 0,
     this.customBackgroundPath,
+    this.cardOpacity = 0.35,
+    this.backgroundOpacity = 0.42,
     bool? particles,
     this.showArtwork = true,
     this.startFullscreen = true,
+    this.showPlayerControls = true,
+    this.playerControlsHideDelaySeconds = 5,
     this.fps = 30,
     this.waveformBars = 128,
     int? particleCount,
@@ -34,8 +39,14 @@ class VisualizerSettings {
   final bool showBackgroundImage;
   final int backgroundIndex;
   final String? customBackgroundPath;
+  final double cardOpacity;
+  final double backgroundOpacity;
   final bool showArtwork;
   final bool startFullscreen;
+  final bool showPlayerControls;
+  final int playerControlsHideDelaySeconds;
+  int get effectivePlayerControlsHideDelaySeconds =>
+      playerControlsHideDelaySeconds.clamp(0, 60);
   final int fps;
   final int waveformBars;
   final int particleCount;
@@ -46,6 +57,12 @@ class VisualizerSettings {
   final VisualizerQuality quality;
 
   bool get particles => effectiveParticleCount > 0;
+  double get effectiveCardOpacity => _opacity(cardOpacity, 0.35);
+  double get effectiveBackgroundOpacity => _opacity(backgroundOpacity, 0.42);
+  int get effectiveBackgroundIndex =>
+      backgroundIndex.clamp(0, VisualizerBackground.presets.length - 1);
+  VisualizerBackground get background =>
+      VisualizerBackground.presets[effectiveBackgroundIndex];
   int get effectiveFps => _closestAllowed(fps, allowedFps);
   int get effectiveWaveformBars =>
       _closestAllowed(waveformBars, allowedWaveformBars);
@@ -62,9 +79,13 @@ class VisualizerSettings {
     int? backgroundIndex,
     String? customBackgroundPath,
     bool clearCustomBackgroundPath = false,
+    double? cardOpacity,
+    double? backgroundOpacity,
     bool? particles,
     bool? showArtwork,
     bool? startFullscreen,
+    bool? showPlayerControls,
+    int? playerControlsHideDelaySeconds,
     int? fps,
     int? waveformBars,
     int? particleCount,
@@ -85,12 +106,23 @@ class VisualizerSettings {
       enabled: enabled ?? this.enabled,
       performanceMode: performanceMode ?? this.performanceMode,
       showBackgroundImage: showBackgroundImage ?? this.showBackgroundImage,
-      backgroundIndex: (backgroundIndex ?? this.backgroundIndex).clamp(0, 5),
+      backgroundIndex: (backgroundIndex ?? this.backgroundIndex).clamp(
+        0,
+        VisualizerBackground.presets.length - 1,
+      ),
       customBackgroundPath: clearCustomBackgroundPath
           ? null
           : customBackgroundPath ?? this.customBackgroundPath,
+      cardOpacity: _opacity(cardOpacity ?? this.cardOpacity, 0.35),
+      backgroundOpacity: _opacity(
+        backgroundOpacity ?? this.backgroundOpacity,
+        0.42,
+      ),
       showArtwork: showArtwork ?? this.showArtwork,
       startFullscreen: startFullscreen ?? this.startFullscreen,
+      showPlayerControls: showPlayerControls ?? this.showPlayerControls,
+      playerControlsHideDelaySeconds:
+          playerControlsHideDelaySeconds ?? this.playerControlsHideDelaySeconds,
       fps: _closestAllowed(fps ?? this.fps, allowedFps),
       waveformBars: _closestAllowed(
         waveformBars ?? this.waveformBars,
@@ -139,15 +171,25 @@ class VisualizerSettings {
       showBackgroundImage: shouldApplyCurrentDefaults
           ? true
           : json['showBackgroundImage'] as bool? ?? true,
-      backgroundIndex:
-          (shouldApplyCurrentDefaults
-                  ? 4
-                  : (json['backgroundIndex'] as num?)?.toInt() ?? 4)
-              .clamp(0, 5),
+      backgroundIndex: _backgroundIndexFromJson(
+        json,
+        shouldApplyCurrentDefaults,
+      ),
       customBackgroundPath: _stringOrNull(json['customBackgroundPath']),
+      cardOpacity: _opacity(
+        (json['cardOpacity'] as num?)?.toDouble() ?? 0.35,
+        0.35,
+      ),
+      backgroundOpacity: _opacity(
+        (json['backgroundOpacity'] as num?)?.toDouble() ?? 0.42,
+        0.42,
+      ),
       particles: legacyParticles,
       showArtwork: json['showArtwork'] as bool? ?? true,
       startFullscreen: json['startFullscreen'] as bool? ?? true,
+      showPlayerControls: json['showPlayerControls'] as bool? ?? true,
+      playerControlsHideDelaySeconds:
+          (json['playerControlsHideDelaySeconds'] as num?)?.toInt() ?? 5,
       fps: _closestAllowed((json['fps'] as num?)?.toInt() ?? 30, allowedFps),
       waveformBars: _closestAllowed(
         shouldApplyCurrentDefaults
@@ -176,11 +218,17 @@ class VisualizerSettings {
       'enabled': enabled,
       'performanceMode': performanceMode,
       'showBackgroundImage': showBackgroundImage,
-      'backgroundIndex': backgroundIndex.clamp(0, 5),
+      'backgroundIndex': effectiveBackgroundIndex,
+      'backgroundId': background.id,
+      'backgroundCatalogVersion': VisualizerBackground.catalogVersion,
       'customBackgroundPath': customBackgroundPath,
+      'cardOpacity': effectiveCardOpacity,
+      'backgroundOpacity': effectiveBackgroundOpacity,
       'particles': particles,
       'showArtwork': showArtwork,
       'startFullscreen': startFullscreen,
+      'showPlayerControls': showPlayerControls,
+      'playerControlsHideDelaySeconds': effectivePlayerControlsHideDelaySeconds,
       'fps': effectiveFps,
       'waveformBars': effectiveWaveformBars,
       'particleCount': effectiveParticleCount,
@@ -193,6 +241,27 @@ class VisualizerSettings {
     };
   }
 
+  static int _backgroundIndexFromJson(
+    Map<String, dynamic> json,
+    bool applyDefaults,
+  ) {
+    final id = json['backgroundId'];
+    if (id is String) {
+      final index = VisualizerBackground.presets.indexWhere(
+        (background) => background.id == id,
+      );
+      return index < 0 ? 0 : index;
+    }
+    if (applyDefaults) return 0;
+    final index = (json['backgroundIndex'] as num?)?.toInt();
+    if (index == null) return 0;
+    if (json['backgroundCatalogVersion'] !=
+        VisualizerBackground.catalogVersion) {
+      return VisualizerBackground.migrateLegacyIndex(index);
+    }
+    return index.clamp(0, VisualizerBackground.presets.length - 1);
+  }
+
   static int _closestAllowed(int value, List<int> allowed) {
     return allowed.reduce((best, option) {
       final bestDistance = (best - value).abs();
@@ -200,6 +269,9 @@ class VisualizerSettings {
       return optionDistance < bestDistance ? option : best;
     });
   }
+
+  static double _opacity(double value, double fallback) =>
+      value.isFinite ? value.clamp(0.0, 1.0) : fallback;
 
   static String? _stringOrNull(Object? value) {
     if (value is! String) {

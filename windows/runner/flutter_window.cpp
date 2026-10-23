@@ -3,6 +3,8 @@
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
 #include <optional>
+#include <shellapi.h>
+#include <string>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -52,6 +54,39 @@ bool FlutterWindow::OnCreate() {
           result->Success();
           return;
         }
+        if (call.method_name() == "minimize") {
+          ShowWindow(GetHandle(), SW_MINIMIZE);
+          result->Success();
+          return;
+        }
+        if (call.method_name() == "openUrl") {
+          const auto* url = std::get_if<std::string>(call.arguments());
+          if (url == nullptr || url->rfind("https://", 0) != 0 ||
+              url->size() > 8192 || url->find('\0') != std::string::npos) {
+            result->Error("invalid_url", "Expected an HTTPS URL.");
+            return;
+          }
+          const int length = MultiByteToWideChar(
+              CP_UTF8, MB_ERR_INVALID_CHARS, url->c_str(), -1, nullptr, 0);
+          if (length == 0) {
+            result->Error("invalid_url", "URL is not valid UTF-8.");
+            return;
+          }
+          std::wstring wide_url(length, L'\0');
+          MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, url->c_str(), -1,
+                              wide_url.data(), length);
+          // Open the default browser directly; command shells are blocked in
+          // Windows S mode and are unnecessary for opening a web page.
+          const auto status = reinterpret_cast<INT_PTR>(ShellExecuteW(
+              GetHandle(), L"open", wide_url.c_str(), nullptr, nullptr,
+              SW_SHOWNORMAL));
+          if (status <= 32) {
+            result->Error("open_url_failed", "Windows could not open the URL.");
+            return;
+          }
+          result->Success();
+          return;
+        }
         result->NotImplemented();
       });
 
@@ -82,10 +117,6 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
-  if (message == WM_KEYDOWN && wparam == VK_F11) {
-    ToggleFullscreen();
-    return 0;
-  }
   if (message == WM_KEYDOWN && wparam == 'W' &&
       (GetKeyState(VK_CONTROL) & 0x8000)) {
     PostMessage(hwnd, WM_CLOSE, 0, 0);

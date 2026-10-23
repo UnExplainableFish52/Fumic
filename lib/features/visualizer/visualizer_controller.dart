@@ -15,6 +15,7 @@ class TrapVisualizerController extends ChangeNotifier {
     required int seed,
     required this.playing,
     required double volume,
+    this.active = true,
   }) : _seed = _safeSeed(seed),
        volume = volume.clamp(0.0, 1.0).toDouble(),
        _generator = FakeSpectrumGenerator(_safeSeed(seed)),
@@ -33,6 +34,7 @@ class TrapVisualizerController extends ChangeNotifier {
 
   VisualizerSettings settings;
   bool playing;
+  bool active;
   double volume;
   SpectrumFrame frame;
   List<VisualizerParticle> particles = const [];
@@ -49,6 +51,7 @@ class TrapVisualizerController extends ChangeNotifier {
     int? seed,
     bool? playing,
     double? volume,
+    bool? active,
   }) {
     final oldBars = this.settings.effectiveWaveformBars;
     final oldParticleCount = this.settings.effectiveParticleCount;
@@ -60,6 +63,7 @@ class TrapVisualizerController extends ChangeNotifier {
     if (playing != null) {
       this.playing = playing;
     }
+    if (active != null) this.active = active;
     if (volume != null) {
       this.volume = volume.clamp(0.0, 1.0).toDouble();
     }
@@ -143,7 +147,7 @@ class TrapVisualizerController extends ChangeNotifier {
   }
 
   void _syncTicker() {
-    if (settings.enabled) {
+    if (settings.enabled && playing && active && volume > 0.001) {
       if (!_ticker.isActive) {
         _lastFrameElapsed = Duration.zero;
         _ticker.start();

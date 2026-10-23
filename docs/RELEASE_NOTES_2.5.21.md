@@ -1,6 +1,6 @@
-# Fumic 2.5.21 - Flutter Public Release
+# Fumic - Magical Media Player 2.5.21 - Flutter Public Release
 
-Fumic `2.5.21` is the current public release of the Flutter generation of Fumic.
+Fumic - Magical Media Player `2.5.21` is the current public release of the Flutter generation of Fumic.
 
 The version number is intentional:
 
@@ -10,7 +10,7 @@ The version number is intentional:
 
 ## What Is Fumic?
 
-Fumic is an offline-first, keyboard-first desktop media player built for people who want a fast local music and video experience without accounts, paywalls, streaming lock-in, or unnecessary bloat.
+Fumic - Magical Media Player is an offline-first, keyboard-first desktop media player built for people who want a fast local music and video experience without accounts, paywalls, streaming lock-in, or unnecessary bloat.
 
 It is built out of frustration with heavy media apps and love for clean software.
 
@@ -58,7 +58,7 @@ Fumic-2.5.21-windows-x64-portable.zip
 Extract the ZIP, then run:
 
 ```text
-Fumic.exe
+fumic.exe
 ```
 
 Do not run the EXE directly from inside the ZIP archive. Extract the folder first.

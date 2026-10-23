@@ -100,7 +100,12 @@ class MediaKitMetadataService implements MediaMetadataService {
           }
         }
 
-        player ??= Player();
+        player ??= Player(
+          configuration: const PlayerConfiguration(
+            muted: true,
+            bufferSize: 4 * 1024 * 1024,
+          ),
+        );
         final metadata = await _readMetadata(
           player: player,
           item: item,
@@ -126,10 +131,13 @@ class MediaKitMetadataService implements MediaMetadataService {
         await Future<void>.delayed(Duration.zero);
       }
     } finally {
-      if (changed) {
-        await _saveCache(cacheFile, cache);
+      try {
+        if (changed) {
+          await _saveCache(cacheFile, cache);
+        }
+      } finally {
+        await player?.dispose();
       }
-      await player?.dispose();
     }
   }
 
@@ -139,6 +147,12 @@ class MediaKitMetadataService implements MediaMetadataService {
     required Directory thumbnailDirectory,
   }) async {
     try {
+      // Probing audio duration needs neither audio output nor decoded artwork
+      // from an attached video track. Only video thumbnails need video decoding.
+      await player.setAudioTrack(AudioTrack.no());
+      await player.setVideoTrack(
+        item.kind == MediaKind.video ? VideoTrack.auto() : VideoTrack.no(),
+      );
       await player.open(Media(Uri.file(item.path).toString()), play: false);
       final duration = await _waitForDuration(player);
       String? thumbnailPath;

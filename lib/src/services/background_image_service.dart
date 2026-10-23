@@ -1,7 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -9,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 abstract class BackgroundImageService {
   Future<String?> pickAndStoreCustomBackground();
   Future<void> deleteCustomBackground(String? path);
+  Future<void> cleanupUnusedBackgrounds(String? activePath);
 }
 
 class FilePickerBackgroundImageService implements BackgroundImageService {
@@ -16,8 +18,10 @@ class FilePickerBackgroundImageService implements BackgroundImageService {
     : _supportDirectory = supportDirectory;
 
   static const _backgroundFolder = 'backgrounds';
-  static const _backgroundFileName = 'custom_background.jpg';
-  static const _maxSide = 1920;
+  static const maxFileBytes = 24 * 1024 * 1024;
+  static final _managedName = RegExp(
+    r'^custom_background(?:_\d+_[a-f0-9]+)?\.jpg(?:\.tmp)?$',
+  );
 
   final Directory? _supportDirectory;
 
@@ -37,24 +41,27 @@ class FilePickerBackgroundImageService implements BackgroundImageService {
   }
 
   Future<String?> storeCustomBackground(File source) async {
-    if (!await source.exists()) {
-      return null;
+    if (!await source.exists()) return null;
+    if (await source.length() > maxFileBytes) {
+      throw const FormatException('Choose a wallpaper smaller than 24 MB.');
     }
+    final bytes = await compute(_prepareBackground, await source.readAsBytes());
+    final directory = await _backgroundDirectory();
+    await directory.create(recursive: true);
+    final suffix = math.Random.secure().nextInt(0x7fffffff).toRadixString(16);
+    final target = File(
+      p.join(
+        directory.path,
+        'custom_background_${DateTime.now().microsecondsSinceEpoch}_$suffix.jpg',
+      ),
+    );
+    final temporary = File('${target.path}.tmp');
     try {
-      final decoded = img.decodeImage(await source.readAsBytes());
-      if (decoded == null || decoded.width < 8 || decoded.height < 8) {
-        return null;
-      }
-      final normalized = _resizeIfNeeded(decoded);
-      final target = await _backgroundFile();
-      await target.parent.create(recursive: true);
-      await target.writeAsBytes(
-        Uint8List.fromList(img.encodeJpg(normalized, quality: 90)),
-        flush: true,
-      );
+      await temporary.writeAsBytes(bytes, flush: true);
+      await temporary.rename(target.path);
       return target.path;
-    } on Object {
-      return null;
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
     }
   }
 
@@ -65,8 +72,9 @@ class FilePickerBackgroundImageService implements BackgroundImageService {
     }
     try {
       final file = File(path);
-      final managedFile = await _backgroundFile();
-      if (!p.equals(file.absolute.path, managedFile.absolute.path)) {
+      final directory = await _backgroundDirectory();
+      if (!p.equals(p.dirname(file.absolute.path), directory.absolute.path) ||
+          !_managedName.hasMatch(p.basename(file.path))) {
         return;
       }
       if (await file.exists()) {
@@ -77,23 +85,66 @@ class FilePickerBackgroundImageService implements BackgroundImageService {
     }
   }
 
-  img.Image _resizeIfNeeded(img.Image source) {
-    final longestSide = source.width > source.height
-        ? source.width
-        : source.height;
-    if (longestSide <= _maxSide) {
-      return source;
+  @override
+  Future<void> cleanupUnusedBackgrounds(String? activePath) async {
+    try {
+      final directory = await _backgroundDirectory();
+      if (!await directory.exists()) return;
+      await for (final entity in directory.list(followLinks: false)) {
+        if (entity is File &&
+            _managedName.hasMatch(p.basename(entity.path)) &&
+            (activePath == null ||
+                !p.equals(
+                  entity.absolute.path,
+                  File(activePath).absolute.path,
+                ))) {
+          await deleteCustomBackground(entity.path);
+        }
+      }
+    } on Object {
+      // Stale-file cleanup must not prevent startup or lose the active image.
     }
-    if (source.width >= source.height) {
-      return img.copyResize(source, width: _maxSide);
-    }
-    return img.copyResize(source, height: _maxSide);
   }
 
-  Future<File> _backgroundFile() async {
+  Future<Directory> _backgroundDirectory() async {
     final directory =
         _supportDirectory ?? await getApplicationSupportDirectory();
-    return File(p.join(directory.path, _backgroundFolder, _backgroundFileName));
+    return Directory(p.join(directory.path, _backgroundFolder));
+  }
+}
+
+Uint8List _prepareBackground(Uint8List bytes) {
+  const unreadable = FormatException(
+    'This wallpaper could not be opened. Try a JPG, PNG, or WebP image.',
+  );
+  try {
+    if (bytes.length > FilePickerBackgroundImageService.maxFileBytes) {
+      throw const FormatException('Choose a wallpaper smaller than 24 MB.');
+    }
+    final decoder = img.findDecoderForData(bytes);
+    final info = decoder?.startDecode(bytes);
+    if (info == null || info.width < 8 || info.height < 8) throw unreadable;
+    if (info.width * info.height > 16 * 1024 * 1024 ||
+        info.width > 16384 ||
+        info.height > 16384) {
+      throw const FormatException(
+        'Choose a wallpaper with at most 16 megapixels.',
+      );
+    }
+    // A wallpaper is a still image, including when an animated file is chosen.
+    final decoded = decoder!.decodeFrame(0);
+    if (decoded == null) throw unreadable;
+    final oriented = img.bakeOrientation(decoded);
+    final normalized = math.max(oriented.width, oriented.height) <= 1920
+        ? oriented
+        : oriented.width >= oriented.height
+        ? img.copyResize(oriented, width: 1920)
+        : img.copyResize(oriented, height: 1920);
+    return Uint8List.fromList(img.encodeJpg(normalized, quality: 90));
+  } on FormatException {
+    rethrow;
+  } on Object {
+    throw unreadable;
   }
 }
 
@@ -102,6 +153,7 @@ class MemoryBackgroundImageService implements BackgroundImageService {
 
   String? nextPath;
   final deletedPaths = <String>[];
+  final cleanupPaths = <String?>[];
 
   @override
   Future<String?> pickAndStoreCustomBackground() async => nextPath;
@@ -111,5 +163,10 @@ class MemoryBackgroundImageService implements BackgroundImageService {
     if (path != null) {
       deletedPaths.add(path);
     }
+  }
+
+  @override
+  Future<void> cleanupUnusedBackgrounds(String? activePath) async {
+    cleanupPaths.add(activePath);
   }
 }

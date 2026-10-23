@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/media_item.dart';
 import '../models/media_kind.dart';
 import '../models/playback_speed.dart';
+import '../services/playback_service.dart';
 import '../theme/fumic_theme.dart';
 
 IconData kindIcon(MediaItem item) {
@@ -42,13 +43,6 @@ class Artwork extends StatelessWidget {
           colors: colors,
         ),
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        boxShadow: [
-          BoxShadow(
-            color: colors.first.withValues(alpha: 0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: thumbnailPath == null
@@ -118,16 +112,17 @@ class RoundIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
-    this.active = false,
+    this.active,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
-  final bool active;
+  final bool? active;
 
   @override
   Widget build(BuildContext context) {
+    final isActive = active ?? false;
     return Tooltip(
       message: tooltip,
       child: SizedBox(
@@ -135,20 +130,43 @@ class RoundIconButton extends StatelessWidget {
         height: 40,
         child: IconButton(
           onPressed: onTap,
+          isSelected: active,
           style: IconButton.styleFrom(
-            backgroundColor: active
-                ? const Color(0xFF123D43)
-                : Colors.transparent,
-            foregroundColor: active
-                ? FumicTheme.accent
-                : const Color(0xFFB8C0CF),
-            shape: CircleBorder(
-              side: active
-                  ? const BorderSide(color: FumicTheme.accent)
-                  : BorderSide.none,
+            backgroundColor: isActive
+                ? const Color(0xD12E625B)
+                : const Color(0x99101828),
+            foregroundColor: isActive
+                ? const Color(0xFFD6FFF6)
+                : const Color(0xFFE3E8F2),
+            hoverColor: FumicTheme.accent.withValues(alpha: 0.10),
+            focusColor: FumicTheme.accent.withValues(alpha: 0.18),
+            side: BorderSide(
+              color: isActive ? FumicTheme.accent : const Color(0x33FFFFFF),
+              width: isActive ? 1.5 : 1,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
-          icon: Icon(icon, size: 22),
+          icon: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Icon(icon, size: 22),
+              if (isActive)
+                Positioned(
+                  bottom: -5,
+                  child: Container(
+                    width: 3,
+                    height: 3,
+                    decoration: const BoxDecoration(
+                      color: FumicTheme.accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -156,30 +174,153 @@ class RoundIconButton extends StatelessWidget {
 }
 
 class PlayButton extends StatelessWidget {
-  const PlayButton({super.key, required this.isPlaying, required this.onTap});
+  const PlayButton({
+    super.key,
+    required this.isPlaying,
+    required this.onTap,
+    this.size = 50,
+  });
 
   final bool isPlaying;
   final VoidCallback onTap;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
       message: isPlaying ? 'Pause' : 'Play',
       child: SizedBox(
-        width: 50,
-        height: 50,
+        width: size,
+        height: size,
         child: IconButton.filled(
           style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFF303743),
-            foregroundColor: Colors.white,
-            shape: const CircleBorder(
-              side: BorderSide(color: Color(0xFF47505E)),
-            ),
+            backgroundColor: FumicTheme.accent,
+            foregroundColor: const Color(0xFF062B30),
+            hoverColor: Colors.white.withValues(alpha: 0.18),
+            focusColor: Colors.white.withValues(alpha: 0.28),
+            shape: const CircleBorder(),
           ),
           onPressed: onTap,
           icon: Icon(
             isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
             size: 30,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PlaybackTransport extends StatelessWidget {
+  const PlaybackTransport({
+    super.key,
+    required this.playback,
+    required this.onPlayPause,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onShuffle,
+    required this.onLoop,
+    this.large = false,
+  });
+
+  final PlaybackSnapshot playback;
+  final VoidCallback onPlayPause;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onShuffle;
+  final VoidCallback onLoop;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      RoundIconButton(
+        icon: Icons.shuffle_rounded,
+        tooltip: 'Shuffle',
+        active: playback.shuffle,
+        onTap: onShuffle,
+      ),
+      SizedBox(width: large ? 12 : 8),
+      RoundIconButton(
+        icon: Icons.skip_previous_rounded,
+        tooltip: 'Previous',
+        onTap: onPrevious,
+      ),
+      SizedBox(width: large ? 12 : 8),
+      PlayButton(
+        isPlaying: playback.playing,
+        onTap: onPlayPause,
+        size: large ? 56 : 48,
+      ),
+      SizedBox(width: large ? 12 : 8),
+      RoundIconButton(
+        icon: Icons.skip_next_rounded,
+        tooltip: 'Next',
+        onTap: onNext,
+      ),
+      SizedBox(width: large ? 12 : 8),
+      RoundIconButton(
+        icon: Icons.repeat_rounded,
+        tooltip: 'Loop',
+        active: playback.loop,
+        onTap: onLoop,
+      ),
+    ],
+  );
+}
+
+class PlaybackMuteButton extends StatelessWidget {
+  const PlaybackMuteButton({
+    super.key,
+    required this.volume,
+    required this.onTap,
+  });
+  final double volume;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = volume <= 0.001;
+    final level = (volume.clamp(0.0, 1.0) * 100).round();
+    return SizedBox(
+      width: 84,
+      height: 40,
+      child: IconButton(
+        tooltip: muted ? 'Unmute' : 'Mute',
+        isSelected: muted,
+        iconSize: 20,
+        onPressed: onTap,
+        icon: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 36,
+              child: Text(
+                '$level',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        style: IconButton.styleFrom(
+          foregroundColor: muted ? FumicTheme.accent : FumicTheme.text,
+          backgroundColor: muted
+              ? const Color(0xD12E625B)
+              : const Color(0x99101828),
+          side: BorderSide(
+            color: muted ? FumicTheme.accent : const Color(0x33FFFFFF),
+            width: muted ? 1.5 : 1,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -234,23 +375,12 @@ class PlaybackSpeedControl extends StatelessWidget {
         height: compact ? 34 : 38,
         padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 12),
         decoration: BoxDecoration(
-          color: active
-              ? const Color(0xFF102F36)
-              : Colors.black.withValues(alpha: 0.22),
-          borderRadius: BorderRadius.circular(999),
+          color: active ? const Color(0xD12E625B) : const Color(0x99101828),
           border: Border.all(
-            color: active
-                ? FumicTheme.accent.withValues(alpha: 0.72)
-                : Colors.white.withValues(alpha: 0.12),
+            color: active ? FumicTheme.accent : const Color(0x33FFFFFF),
+            width: active ? 1.5 : 1,
           ),
-          boxShadow: active
-              ? [
-                  BoxShadow(
-                    color: FumicTheme.accent.withValues(alpha: 0.18),
-                    blurRadius: 14,
-                  ),
-                ]
-              : null,
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -266,7 +396,7 @@ class PlaybackSpeedControl extends StatelessWidget {
               style: TextStyle(
                 color: active ? FumicTheme.accent : Colors.white,
                 fontSize: compact ? 12 : 13,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -346,7 +476,7 @@ class ProgressTrack extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 children: [
                   Container(
-                    height: 5,
+                    height: 3,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),
@@ -355,7 +485,7 @@ class ProgressTrack extends StatelessWidget {
                   FractionallySizedBox(
                     widthFactor: bufferedFactor,
                     child: Container(
-                      height: 5,
+                      height: 3,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.22),
                         borderRadius: BorderRadius.circular(999),
@@ -365,7 +495,7 @@ class ProgressTrack extends StatelessWidget {
                   FractionallySizedBox(
                     widthFactor: factor,
                     child: Container(
-                      height: 5,
+                      height: 3,
                       decoration: BoxDecoration(
                         color: FumicTheme.accent,
                         borderRadius: BorderRadius.circular(999),
@@ -386,13 +516,6 @@ class ProgressTrack extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
-                        border: Border.all(color: FumicTheme.accent, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: FumicTheme.accent.withValues(alpha: 0.35),
-                            blurRadius: 10,
-                          ),
-                        ],
                       ),
                     ),
                   ),
@@ -418,7 +541,7 @@ class SectionTitle extends StatelessWidget {
       children: [
         Text(
           text,
-          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 14),
         Divider(color: Colors.white.withValues(alpha: 0.08)),
@@ -437,7 +560,7 @@ class SoftBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFF22313A),
+        color: Colors.white.withValues(alpha: 0.045),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),

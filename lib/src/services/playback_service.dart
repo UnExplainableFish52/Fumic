@@ -7,7 +7,7 @@ class PlaybackSnapshot {
   const PlaybackSnapshot({
     this.currentItem,
     this.playing = false,
-    this.shuffle = false,
+    this.shuffle = true,
     this.loop = false,
     this.volume = 0.52,
     this.speed = 1.0,

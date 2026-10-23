@@ -75,16 +75,10 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF141B25),
+              color: const Color(0xF0101828),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.36),
-                  blurRadius: 32,
-                  offset: const Offset(0, 18),
-                ),
-              ],
+              border: Border.all(color: FumicTheme.edge),
+              boxShadow: FumicTheme.panelShadow,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

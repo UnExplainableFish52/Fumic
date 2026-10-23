@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +12,7 @@ import '../theme/fumic_theme.dart';
 import '../widgets/add_to_playlist_dialog.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/visualizer_view.dart';
+import '../widgets/wallpaper_image.dart';
 import 'fumic_controller.dart';
 import 'fumic_shortcuts.dart';
 
@@ -34,10 +34,15 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
   final FocusNode _appFocusNode = FocusNode(debugLabel: 'Fumic app focus');
   late final FocusNode _searchFocusNode;
   final TextEditingController _searchController = TextEditingController();
+  final ValueNotifier<int> _playerActivity = ValueNotifier(0);
   int _homeScrollToTopRequest = 0;
+  int _playlistCreateShortcutRequest = 0;
+  int _playlistRenameShortcutRequest = 0;
+  int _playlistDeleteShortcutRequest = 0;
+  bool _playlistTextInputFocused = false;
   bool _fullscreen = true;
-  bool _visualizerFullscreenSession = false;
   bool? _lastStartFullscreenSetting;
+  bool _foregroundActive = true;
 
   String get _query => _searchController.text;
 
@@ -54,6 +59,10 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
     super.initState();
     _ownsController = widget.controller == null;
     _controller = widget.controller ?? FumicController.production();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foregroundActive =
+        lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    _controller.setForegroundActive(_foregroundActive);
     _searchFocusNode = FocusNode(
       debugLabel: 'Fumic search',
       onKeyEvent: _handleSearchKeyEvent,
@@ -81,179 +90,256 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
     _appFocusNode.dispose();
     _searchFocusNode.dispose();
     _searchController.dispose();
+    _playerActivity.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Fumic',
+      title: 'Fumic - Magical Media Player',
       debugShowCheckedModeBanner: false,
-      theme: FumicTheme.dark(),
-      home: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          final visibleItems = _controller.visibleItems(_query);
-          final selectedItem = _controller.selectedItem(_query);
-          final playback = _controller.playback;
-          final fullPlayerItem = _fullPlayerItem(
-            playback.currentItem,
-            selectedItem,
-          );
+      theme: FumicTheme.dark(
+        cardOpacity: _controller.visualizerSettings.effectiveCardOpacity,
+      ),
+      home: TickerMode(
+        enabled: _foregroundActive,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final visibleItems = _controller.visibleItems(_query);
+            final selectedItem = _controller.selectedItem(_query);
+            final playback = _controller.playback;
+            final fullPlayerItem = _fullPlayerItem(
+              playback.currentItem,
+              selectedItem,
+            );
 
-          return Shortcuts(
-            shortcuts: fumicShortcuts(
-              textInputFocused: _textInputFocused,
-              searchFocused: _searchFocusNode.hasFocus,
-              visualizerOpen: _controller.fullPlayer,
-            ),
-            child: Actions(
-              actions: _actions(context),
-              child: Listener(
-                behavior: HitTestBehavior.translucent,
-                onPointerDown: (_) => _returnFocusAfterPointer(context),
-                child: Focus(
-                  autofocus: true,
-                  focusNode: _appFocusNode,
-                  child: Scaffold(
-                    body: Stack(
-                      children: [
-                        _Atmosphere(settings: _controller.visualizerSettings),
-                        SafeArea(
-                          bottom: false,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 220),
-                            child: _controller.fullPlayer
-                                ? VisualizerView(
-                                    key: const ValueKey('visualizer'),
-                                    item: fullPlayerItem,
-                                    playback: playback,
-                                    videoController: _controller
-                                        .playbackService
-                                        .videoController,
-                                    settings: _controller.visualizerSettings,
-                                    onClose: _closeVisualizer,
-                                    onPlayPause: _togglePlay,
-                                    onNext: () => _controller.playNext(_query),
-                                    onPrevious: () =>
-                                        _controller.playPrevious(_query),
-                                    onLoop: _controller.toggleLoop,
-                                    onShuffle: _controller.toggleShuffle,
-                                    onVolumeChanged: _controller.setVolume,
-                                    onSpeedChanged:
-                                        _controller.setPlaybackSpeed,
-                                    onSeekFraction: _controller.seekToFraction,
-                                  )
-                                : AppFrame(
-                                    key: const ValueKey('home'),
-                                    page: _controller.page,
-                                    tab: _controller.tab,
-                                    visibleItems: visibleItems,
-                                    libraryItems: _controller.items,
-                                    selectedItem: selectedItem,
-                                    playback: playback,
-                                    playlists: _controller.playlists,
-                                    selectedPlaylistId:
-                                        _controller.selectedPlaylistId,
-                                    activePlaylistId:
-                                        _controller.activePlaylistId,
-                                    folders: _controller.folders,
-                                    scanning: _controller.scanning,
-                                    enrichingMetadata:
-                                        _controller.enrichingMetadata,
-                                    libraryError: _controller.libraryError,
-                                    audioCount: _controller.itemCountFor(
-                                      MediaKind.audio,
+            return Shortcuts(
+              shortcuts: fumicShortcuts(
+                page: _controller.page,
+                textInputFocused:
+                    _textInputFocused ||
+                    (_controller.page == FumicPage.playlists &&
+                        _playlistTextInputFocused),
+                searchFocused: _searchFocusNode.hasFocus,
+                visualizerOpen: _controller.fullPlayer,
+              ),
+              child: Actions(
+                actions: _actions(context),
+                child: Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (_) => _returnFocusAfterPointer(context),
+                  child: Focus(
+                    autofocus: true,
+                    focusNode: _appFocusNode,
+                    onKeyEvent: (node, event) {
+                      if (_controller.fullPlayer &&
+                          (event is KeyDownEvent || event is KeyRepeatEvent)) {
+                        _playerActivity.value++;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: Scaffold(
+                      body: Stack(
+                        children: [
+                          if (!_controller.fullPlayer)
+                            RepaintBoundary(
+                              child: _Atmosphere(
+                                settings: _controller.visualizerSettings,
+                              ),
+                            ),
+                          SafeArea(
+                            bottom: false,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 220),
+                              child: _controller.fullPlayer
+                                  ? VisualizerView(
+                                      key: const ValueKey('visualizer'),
+                                      item: fullPlayerItem,
+                                      playback: playback,
+                                      playbackProgress:
+                                          _controller.playbackProgress,
+                                      videoController: _controller
+                                          .playbackService
+                                          .videoController,
+                                      settings: _controller.visualizerSettings,
+                                      onBackToLibrary: _closeVisualizer,
+                                      activity: _playerActivity,
+                                      onPlayPause: _togglePlay,
+                                      onNext: () =>
+                                          _controller.playNext(_query),
+                                      onPrevious: () =>
+                                          _controller.playPrevious(_query),
+                                      onLoop: _controller.toggleLoop,
+                                      onShuffle: _controller.toggleShuffle,
+                                      onMute: _controller.muteOrRestore,
+                                      onSpeedChanged:
+                                          _controller.setPlaybackSpeed,
+                                      onSeekFraction:
+                                          _controller.seekToFraction,
+                                    )
+                                  : AppFrame(
+                                      key: const ValueKey('home'),
+                                      page: _controller.page,
+                                      tab: _controller.tab,
+                                      visibleItems: visibleItems,
+                                      libraryItems: _controller.items,
+                                      selectedItem: selectedItem,
+                                      playback: playback,
+                                      playbackProgress:
+                                          _controller.playbackProgress,
+                                      playlists: _controller.playlists,
+                                      selectedPlaylistId:
+                                          _controller.selectedPlaylistId,
+                                      activePlaylistId:
+                                          _controller.activePlaylistId,
+                                      folders: _controller.folders,
+                                      scanning: _controller.scanning,
+                                      enrichingMetadata:
+                                          _controller.enrichingMetadata,
+                                      libraryError: _controller.libraryError,
+                                      audioCount: _controller.itemCountFor(
+                                        MediaKind.audio,
+                                      ),
+                                      videoCount: _controller.itemCountFor(
+                                        MediaKind.video,
+                                      ),
+                                      visualizerSettings:
+                                          _controller.visualizerSettings,
+                                      sessionStopwatch: _sessionStopwatch,
+                                      homeScrollToTopRequest:
+                                          _homeScrollToTopRequest,
+                                      playlistCreateShortcutRequest:
+                                          _playlistCreateShortcutRequest,
+                                      playlistRenameShortcutRequest:
+                                          _playlistRenameShortcutRequest,
+                                      playlistDeleteShortcutRequest:
+                                          _playlistDeleteShortcutRequest,
+                                      searchController: _searchController,
+                                      searchFocusNode: _searchFocusNode,
+                                      onPageSelected: _selectPage,
+                                      onTabSelected: _selectTab,
+                                      hasCustomCover:
+                                          _controller.hasCustomCover,
+                                      onCoverAction: (item, action) async {
+                                        try {
+                                          await _controller.changeCover(
+                                            item,
+                                            action,
+                                          );
+                                        } on Object catch (error) {
+                                          if (!context.mounted) return;
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                error is FormatException
+                                                    ? error.message.toString()
+                                                    : 'Could not update cover artwork. Please try another image.',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      onItemSelected: (item) {
+                                        _controller.selectItemByPath(
+                                          item.path,
+                                          _query,
+                                        );
+                                      },
+                                      onItemActivated: (item) {
+                                        _controller.activateItemByPath(
+                                          item.path,
+                                          _query,
+                                        );
+                                      },
+                                      onPlaylistSelected:
+                                          _controller.selectPlaylist,
+                                      onPlaylistEditorClosed:
+                                          _returnFocusAfterPlaylistEditor,
+                                      onPlaylistEditorFocusChanged:
+                                          _onPlaylistEditorFocusChanged,
+                                      onCreatePlaylist: (name) async {
+                                        await _controller.createPlaylist(name);
+                                      },
+                                      onRenamePlaylist:
+                                          _controller.renamePlaylist,
+                                      onDeletePlaylist:
+                                          _controller.deletePlaylist,
+                                      onPlayPlaylist: (id) =>
+                                          _controller.playPlaylist(id),
+                                      onShufflePlaylist: (id) => _controller
+                                          .playPlaylist(id, shuffle: true),
+                                      onAddItemToPlaylist: (id, item) {
+                                        return _controller.addItemToPlaylist(
+                                          item,
+                                          id,
+                                        );
+                                      },
+                                      onRemovePlaylistEntry:
+                                          _controller.removePlaylistEntry,
+                                      onReorderPlaylistEntry:
+                                          _controller.reorderPlaylistEntry,
+                                      onPlayPause: _togglePlay,
+                                      onNext: () =>
+                                          _controller.playNext(_query),
+                                      onPrevious: () =>
+                                          _controller.playPrevious(_query),
+                                      onLoop: _controller.toggleLoop,
+                                      onShuffle: _controller.toggleShuffle,
+                                      onVolumeChanged: _controller.setVolume,
+                                      onMute: _controller.muteOrRestore,
+                                      onSpeedChanged:
+                                          _controller.setPlaybackSpeed,
+                                      onSeekFraction:
+                                          _controller.seekToFraction,
+                                      onFullPlayer: _showFullPlayer,
+                                      onPickFolder: _controller.addFolder,
+                                      onRefreshLibrary: () {
+                                        _controller.refreshLibrary();
+                                      },
+                                      onRemoveFolder: _controller.removeFolder,
+                                      onClearFolders: _controller.clearFolders,
+                                      onVisualizerSettingsChanged: (value) {
+                                        unawaited(
+                                          _changeAppearance(
+                                            () => _controller
+                                                .updateVisualizerSettings(
+                                                  value,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      onPickCustomBackground: () {
+                                        unawaited(
+                                          _changeAppearance(
+                                            _controller.pickCustomBackground,
+                                          ),
+                                        );
+                                        _returnFocus();
+                                      },
+                                      onResetCustomBackground: () {
+                                        unawaited(
+                                          _changeAppearance(
+                                            _controller.resetCustomBackground,
+                                          ),
+                                        );
+                                        _returnFocus();
+                                      },
                                     ),
-                                    videoCount: _controller.itemCountFor(
-                                      MediaKind.video,
-                                    ),
-                                    visualizerSettings:
-                                        _controller.visualizerSettings,
-                                    sessionStopwatch: _sessionStopwatch,
-                                    homeScrollToTopRequest:
-                                        _homeScrollToTopRequest,
-                                    searchController: _searchController,
-                                    searchFocusNode: _searchFocusNode,
-                                    onPageSelected: _selectPage,
-                                    onTabSelected: _selectTab,
-                                    onItemSelected: (item) {
-                                      _controller.selectItemByPath(
-                                        item.path,
-                                        _query,
-                                      );
-                                    },
-                                    onItemActivated: (item) {
-                                      _controller.activateItemByPath(
-                                        item.path,
-                                        _query,
-                                      );
-                                    },
-                                    onPlaylistSelected:
-                                        _controller.selectPlaylist,
-                                    onCreatePlaylist: (name) async {
-                                      await _controller.createPlaylist(name);
-                                    },
-                                    onRenamePlaylist:
-                                        _controller.renamePlaylist,
-                                    onDeletePlaylist:
-                                        _controller.deletePlaylist,
-                                    onPlayPlaylist: (id) =>
-                                        _controller.playPlaylist(id),
-                                    onShufflePlaylist: (id) => _controller
-                                        .playPlaylist(id, shuffle: true),
-                                    onAddItemToPlaylist: (id, item) {
-                                      return _controller.addItemToPlaylist(
-                                        item,
-                                        id,
-                                      );
-                                    },
-                                    onRemovePlaylistEntry:
-                                        _controller.removePlaylistEntry,
-                                    onReorderPlaylistEntry:
-                                        _controller.reorderPlaylistEntry,
-                                    onPlayPause: _togglePlay,
-                                    onNext: () => _controller.playNext(_query),
-                                    onPrevious: () =>
-                                        _controller.playPrevious(_query),
-                                    onLoop: _controller.toggleLoop,
-                                    onShuffle: _controller.toggleShuffle,
-                                    onVolumeChanged: _controller.setVolume,
-                                    onSpeedChanged:
-                                        _controller.setPlaybackSpeed,
-                                    onSeekFraction: _controller.seekToFraction,
-                                    onFullPlayer: _controller.showFullPlayer,
-                                    onPickFolder: _controller.addFolder,
-                                    onRefreshLibrary: () {
-                                      _controller.refreshLibrary();
-                                    },
-                                    onRemoveFolder: _controller.removeFolder,
-                                    onClearFolders: _controller.clearFolders,
-                                    onVisualizerSettingsChanged:
-                                        _controller.updateVisualizerSettings,
-                                    onPickCustomBackground: () {
-                                      unawaited(
-                                        _controller.pickCustomBackground(),
-                                      );
-                                      _returnFocus();
-                                    },
-                                    onResetCustomBackground: () {
-                                      unawaited(
-                                        _controller.resetCustomBackground(),
-                                      );
-                                      _returnFocus();
-                                    },
-                                  ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -275,6 +361,13 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
       MoveSelectionIntent: CallbackAction<MoveSelectionIntent>(
         onInvoke: (intent) {
           _controller.moveSelection(intent.delta, _query);
+          return null;
+        },
+      ),
+      MovePlaylistSelectionIntent: CallbackAction<MovePlaylistSelectionIntent>(
+        onInvoke: (intent) {
+          _controller.movePlaylistSelection(intent.delta);
+          _returnFocus();
           return null;
         },
       ),
@@ -327,6 +420,33 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
           return null;
         },
       ),
+      StartCreatePlaylistIntent: CallbackAction<StartCreatePlaylistIntent>(
+        onInvoke: (_) {
+          _requestPlaylistCreate();
+          return null;
+        },
+      ),
+      RenameSelectedPlaylistIntent:
+          CallbackAction<RenameSelectedPlaylistIntent>(
+            onInvoke: (_) {
+              _requestPlaylistRename();
+              return null;
+            },
+          ),
+      DeleteSelectedPlaylistIntent:
+          CallbackAction<DeleteSelectedPlaylistIntent>(
+            onInvoke: (_) {
+              _requestPlaylistDelete();
+              return null;
+            },
+          ),
+      ActivateSelectedPlaylistIntent:
+          CallbackAction<ActivateSelectedPlaylistIntent>(
+            onInvoke: (_) {
+              unawaited(_activateSelectedPlaylistFromKeyboard());
+              return null;
+            },
+          ),
       QuitIntent: CallbackAction<QuitIntent>(
         onInvoke: (_) {
           _quitApp();
@@ -381,17 +501,31 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
           return null;
         },
       ),
-      ToggleVisualizerFullscreenIntent:
-          CallbackAction<ToggleVisualizerFullscreenIntent>(
-            onInvoke: (_) {
-              _toggleVisualizerFullscreen();
-              return null;
-            },
-          ),
+      MinimizeAppIntent: CallbackAction<MinimizeAppIntent>(
+        onInvoke: (_) {
+          _minimizeApp();
+          return null;
+        },
+      ),
+      TogglePlayerControlsIntent: CallbackAction<TogglePlayerControlsIntent>(
+        onInvoke: (_) {
+          unawaited(
+            _changeAppearance(
+              () => _controller.updateVisualizerSettings(
+                _controller.visualizerSettings.copyWith(
+                  showPlayerControls:
+                      !_controller.visualizerSettings.showPlayerControls,
+                ),
+              ),
+            ),
+          );
+          return null;
+        },
+      ),
       CycleVisualizerQualityIntent:
           CallbackAction<CycleVisualizerQualityIntent>(
             onInvoke: (_) {
-              _controller.cycleVisualizerQuality();
+              unawaited(_changeAppearance(_controller.cycleVisualizerQuality));
               _returnFocus();
               return null;
             },
@@ -399,7 +533,9 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
       ToggleVisualizerParticlesIntent:
           CallbackAction<ToggleVisualizerParticlesIntent>(
             onInvoke: (_) {
-              _controller.toggleVisualizerParticles();
+              unawaited(
+                _changeAppearance(_controller.toggleVisualizerParticles),
+              );
               _returnFocus();
               return null;
             },
@@ -407,7 +543,11 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
       AdjustVisualizerIntensityIntent:
           CallbackAction<AdjustVisualizerIntensityIntent>(
             onInvoke: (intent) {
-              _controller.adjustVisualizerIntensity(intent.delta);
+              unawaited(
+                _changeAppearance(
+                  () => _controller.adjustVisualizerIntensity(intent.delta),
+                ),
+              );
               _returnFocus();
               return null;
             },
@@ -429,12 +569,22 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final active = state == AppLifecycleState.resumed;
+    if (_foregroundActive != active) {
+      setState(() => _foregroundActive = active);
+      _controller.setForegroundActive(active);
+    }
     if (state == AppLifecycleState.resumed) {
       _returnFocus();
     }
   }
 
   void _selectPage(FumicPage page) {
+    if (page != FumicPage.playlists && _playlistTextInputFocused) {
+      setState(() {
+        _playlistTextInputFocused = false;
+      });
+    }
     if (page == FumicPage.home &&
         _controller.page == FumicPage.home &&
         !_controller.fullPlayer) {
@@ -448,8 +598,57 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
     _returnFocus();
   }
 
+  void _onPlaylistEditorFocusChanged(bool focused) {
+    if (_playlistTextInputFocused == focused) {
+      return;
+    }
+    setState(() {
+      _playlistTextInputFocused = focused;
+    });
+  }
+
   void _selectTab(MediaKind kind) {
     _controller.selectTab(kind);
+    _returnFocus();
+  }
+
+  void _requestPlaylistCreate() {
+    if (_controller.page != FumicPage.playlists) {
+      return;
+    }
+    setState(() {
+      _playlistCreateShortcutRequest++;
+    });
+  }
+
+  void _requestPlaylistRename() {
+    if (_controller.page != FumicPage.playlists) {
+      return;
+    }
+    setState(() {
+      _playlistRenameShortcutRequest++;
+    });
+  }
+
+  void _requestPlaylistDelete() {
+    if (_controller.page != FumicPage.playlists) {
+      return;
+    }
+    setState(() {
+      _playlistDeleteShortcutRequest++;
+    });
+    _returnFocus();
+  }
+
+  Future<void> _activateSelectedPlaylistFromKeyboard() async {
+    if (_controller.page != FumicPage.playlists) {
+      return;
+    }
+    if (_controller.selectedPlaylistId == _controller.activePlaylistId) {
+      await _controller.playbackService.togglePlay();
+    } else {
+      await _controller.playPlaylist(_controller.selectedPlaylistId);
+    }
     _returnFocus();
   }
 
@@ -458,35 +657,44 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
     _returnFocus();
   }
 
+  Future<void> _changeAppearance(Future<void> Function() change) async {
+    try {
+      await change();
+    } on Object catch (error) {
+      if (!mounted) return;
+      final context = _appFocusNode.context;
+      if (context == null || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is FormatException
+                ? error.message.toString()
+                : 'Could not save appearance changes. Please try again.',
+          ),
+        ),
+      );
+    }
+  }
+
   void _toggleVisualizer() {
     if (_controller.fullPlayer) {
       _closeVisualizer();
       return;
     }
-    _controller.showFullPlayer();
-    _returnFocus();
+    _showFullPlayer();
   }
 
-  void _toggleVisualizerFullscreen() {
-    if (!_controller.fullPlayer) {
-      _controller.showFullPlayer();
-      if (!_fullscreen) {
-        _fullscreen = true;
-        _visualizerFullscreenSession = true;
-        _applyFullscreen(true);
-      }
-      _returnFocus();
-      return;
+  void _showFullPlayer() {
+    if (!_fullscreen) {
+      _fullscreen = true;
+      _applyFullscreen(true);
     }
-    _fullscreen = !_fullscreen;
-    _visualizerFullscreenSession = _fullscreen;
-    _applyFullscreen(_fullscreen);
+    _controller.showFullPlayer();
     _returnFocus();
   }
 
   void _closeVisualizer() {
     _controller.closeFullPlayer();
-    _endVisualizerFullscreenSession();
     _returnFocus();
   }
 
@@ -545,30 +753,18 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
       _returnFocus();
       return;
     }
-    if (_fullscreen) {
-      _toggleFullscreen();
-    }
   }
 
   void _toggleFullscreen() {
     _fullscreen = !_fullscreen;
-    _visualizerFullscreenSession = false;
     _applyFullscreen(_fullscreen);
     _returnFocus();
-  }
-
-  void _endVisualizerFullscreenSession() {
-    if (_visualizerFullscreenSession && _fullscreen) {
-      _fullscreen = false;
-      _applyFullscreen(false);
-    }
-    _visualizerFullscreenSession = false;
   }
 
   void _onControllerChanged() {
     if (mounted) {
       final desiredFullscreen = _controller.visualizerSettings.startFullscreen;
-      if (_lastStartFullscreenSetting != desiredFullscreen) {
+      if (_controller.settingsLoaded && _lastStartFullscreenSetting == null) {
         _lastStartFullscreenSetting = desiredFullscreen;
         _fullscreen = desiredFullscreen;
         _applyFullscreen(desiredFullscreen);
@@ -597,6 +793,15 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
   void _returnFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_textInputFocused) {
+        _appFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _returnFocusAfterPlaylistEditor() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
         _appFocusNode.requestFocus();
       }
     });
@@ -655,6 +860,14 @@ class _FumicAppState extends State<FumicApp> with WidgetsBindingObserver {
     }
   }
 
+  void _minimizeApp() {
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      unawaited(
+        _windowChannel.invokeMethod<void>('minimize').catchError((Object _) {}),
+      );
+    }
+  }
+
   void _quitApp() {
     if (defaultTargetPlatform == TargetPlatform.windows) {
       unawaited(
@@ -699,25 +912,11 @@ class _Atmosphere extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasCustomBackground = settings.customBackgroundPath != null;
-    final preset = Image.asset(
-      _presetBackgroundFor(settings),
-      fit: BoxFit.cover,
-      filterQuality: FilterQuality.medium,
-    );
-    final customPath = settings.customBackgroundPath;
     return Stack(
       fit: StackFit.expand,
       children: [
         if (settings.showBackgroundImage)
-          customPath == null
-              ? preset
-              : Image.file(
-                  File(customPath),
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (context, error, stackTrace) => preset,
-                )
+          WallpaperImage(settings: settings)
         else
           const DecoratedBox(
             decoration: BoxDecoration(
@@ -732,31 +931,13 @@ class _Atmosphere extends StatelessWidget {
               ),
             ),
           ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                FumicTheme.background.withValues(
-                  alpha: hasCustomBackground ? 0.68 : 0.58,
-                ),
-                const Color(
-                  0xFF10151F,
-                ).withValues(alpha: hasCustomBackground ? 0.80 : 0.72),
-                Colors.black.withValues(
-                  alpha: hasCustomBackground ? 0.86 : 0.78,
-                ),
-              ],
-            ),
+        ColoredBox(
+          key: const ValueKey('background-dimming-overlay'),
+          color: FumicTheme.background.withValues(
+            alpha: settings.effectiveBackgroundOpacity,
           ),
         ),
       ],
     );
-  }
-
-  String _presetBackgroundFor(VisualizerSettings settings) {
-    final index = settings.backgroundIndex.clamp(0, 5);
-    return 'icons/viz_bg${index + 1}.jpg';
   }
 }

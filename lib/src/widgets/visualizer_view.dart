@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -11,52 +10,54 @@ import '../models/visualizer_settings.dart';
 import '../services/playback_service.dart';
 import '../theme/fumic_theme.dart';
 import 'shared.dart';
+import 'wallpaper_image.dart';
+import 'full_player_surface.dart';
 
 class VisualizerView extends StatelessWidget {
   const VisualizerView({
     super.key,
     required this.item,
     required this.playback,
+    required this.playbackProgress,
     required this.videoController,
     required this.settings,
-    required this.onClose,
+    required this.onBackToLibrary,
+    this.activity,
     required this.onPlayPause,
     required this.onNext,
     required this.onPrevious,
     required this.onLoop,
     required this.onShuffle,
-    required this.onVolumeChanged,
+    required this.onMute,
     required this.onSpeedChanged,
     required this.onSeekFraction,
   });
 
   final MediaItem item;
   final PlaybackSnapshot playback;
+  final ValueNotifier<PlaybackSnapshot> playbackProgress;
   final VideoController? videoController;
   final VisualizerSettings settings;
-  final VoidCallback onClose;
+  final VoidCallback onBackToLibrary;
+  final Listenable? activity;
   final VoidCallback onPlayPause;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
   final VoidCallback onLoop;
   final VoidCallback onShuffle;
-  final ValueChanged<double> onVolumeChanged;
+  final VoidCallback onMute;
   final ValueChanged<double> onSpeedChanged;
   final ValueChanged<double> onSeekFraction;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: _Background(
-            item: item,
-            controller: videoController,
-            settings: settings,
-          ),
-        ),
-        Positioned.fill(
-          child: DecoratedBox(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 808;
+        return FullPlayerSurface(
+          settings: settings,
+          activity: activity,
+          controlsBackdrop: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -73,34 +74,56 @@ class VisualizerView extends StatelessWidget {
               ),
             ),
           ),
-        ),
-        if (item.kind == MediaKind.audio)
-          Center(
-            child: TrapVisualizerView(
-              item: item,
-              playback: playback,
-              settings: settings,
+          content: Stack(
+            children: [
+              Positioned.fill(
+                child: RepaintBoundary(
+                  child: _Background(
+                    item: item,
+                    controller: videoController,
+                    settings: settings,
+                  ),
+                ),
+              ),
+              if (item.kind == MediaKind.audio && settings.enabled)
+                Positioned.fill(
+                  top: 32,
+                  bottom: compact ? 250 : 208,
+                  child: Center(
+                    child: TrapVisualizerView(
+                      item: item,
+                      playback: playback,
+                      settings: settings,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          controls: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: ValueListenableBuilder<PlaybackSnapshot>(
+                valueListenable: playbackProgress,
+                builder: (context, progress, _) => RepaintBoundary(
+                  child: _FullPlayerControls(
+                    item: item,
+                    playback: progress,
+                    onPlayPause: onPlayPause,
+                    onNext: onNext,
+                    onPrevious: onPrevious,
+                    onLoop: onLoop,
+                    onShuffle: onShuffle,
+                    onMute: onMute,
+                    onSpeedChanged: onSpeedChanged,
+                    onSeekFraction: onSeekFraction,
+                    onBackToLibrary: onBackToLibrary,
+                  ),
+                ),
+              ),
             ),
           ),
-        Positioned(top: 28, right: 30, child: _CloseButton(onTap: onClose)),
-        Positioned(
-          left: 40,
-          right: 40,
-          bottom: 34,
-          child: _FullPlayerControls(
-            item: item,
-            playback: playback,
-            onPlayPause: onPlayPause,
-            onNext: onNext,
-            onPrevious: onPrevious,
-            onLoop: onLoop,
-            onShuffle: onShuffle,
-            onVolumeChanged: onVolumeChanged,
-            onSpeedChanged: onSpeedChanged,
-            onSeekFraction: onSeekFraction,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -133,7 +156,7 @@ class _Background extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         if (settings.showBackgroundImage)
-          _PresetBackground(settings: settings)
+          WallpaperImage(settings: settings)
         else
           DecoratedBox(
             decoration: BoxDecoration(
@@ -145,42 +168,16 @@ class _Background extends StatelessWidget {
             ),
           ),
         Positioned.fill(
-          child: ColoredBox(color: Colors.black.withValues(alpha: 0.50)),
+          child: ColoredBox(
+            color: FumicTheme.background.withValues(
+              alpha: settings.effectiveBackgroundOpacity,
+            ),
+          ),
         ),
         if (settings.enabled && settings.backgroundMotion)
           CustomPaint(painter: _VisualizerBackgroundPainter(item.colors)),
       ],
     );
-  }
-}
-
-class _PresetBackground extends StatelessWidget {
-  const _PresetBackground({required this.settings});
-
-  final VisualizerSettings settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final preset = Image.asset(
-      _presetBackgroundFor(settings),
-      fit: BoxFit.cover,
-      filterQuality: FilterQuality.medium,
-    );
-    final customPath = settings.customBackgroundPath;
-    if (customPath == null) {
-      return preset;
-    }
-    return Image.file(
-      File(customPath),
-      fit: BoxFit.cover,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (context, error, stackTrace) => preset,
-    );
-  }
-
-  String _presetBackgroundFor(VisualizerSettings settings) {
-    final index = settings.backgroundIndex.clamp(0, 5);
-    return 'icons/viz_bg${index + 1}.jpg';
   }
 }
 
@@ -193,9 +190,10 @@ class _FullPlayerControls extends StatelessWidget {
     required this.onPrevious,
     required this.onLoop,
     required this.onShuffle,
-    required this.onVolumeChanged,
+    required this.onMute,
     required this.onSpeedChanged,
     required this.onSeekFraction,
+    required this.onBackToLibrary,
   });
 
   final MediaItem item;
@@ -205,101 +203,132 @@ class _FullPlayerControls extends StatelessWidget {
   final VoidCallback onPrevious;
   final VoidCallback onLoop;
   final VoidCallback onShuffle;
-  final ValueChanged<double> onVolumeChanged;
+  final VoidCallback onMute;
   final ValueChanged<double> onSpeedChanged;
   final ValueChanged<double> onSeekFraction;
+  final VoidCallback onBackToLibrary;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          item.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          mediaKindLabel(item.kind),
-          style: const TextStyle(color: Color(0xFFB8C0CF), fontSize: 16),
-        ),
-        const SizedBox(height: 18),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 760;
+        final transport = PlaybackTransport(
+          playback: playback,
+          onPlayPause: onPlayPause,
+          onPrevious: onPrevious,
+          onNext: onNext,
+          onLoop: onLoop,
+          onShuffle: onShuffle,
+          large: true,
+        );
+        final utilities = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(formatDuration(playback.position)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ProgressTrack(
-                position: playback.position,
-                duration: playback.duration,
-                buffered: playback.buffered,
-                onSeekFraction: onSeekFraction,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              playback.duration > Duration.zero
-                  ? formatDuration(playback.duration)
-                  : item.durationLabel,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            RoundIconButton(
-              icon: Icons.shuffle_rounded,
-              active: playback.shuffle,
-              tooltip: 'Shuffle',
-              onTap: onShuffle,
-            ),
-            const SizedBox(width: 10),
-            RoundIconButton(
-              icon: Icons.skip_previous_rounded,
-              tooltip: 'Previous',
-              onTap: onPrevious,
-            ),
-            const SizedBox(width: 10),
-            PlayButton(isPlaying: playback.playing, onTap: onPlayPause),
-            const SizedBox(width: 10),
-            RoundIconButton(
-              icon: Icons.skip_next_rounded,
-              tooltip: 'Next',
-              onTap: onNext,
-            ),
-            const SizedBox(width: 10),
-            RoundIconButton(
-              icon: Icons.repeat_rounded,
-              active: playback.loop,
-              tooltip: 'Loop',
-              onTap: onLoop,
-            ),
-            const SizedBox(width: 20),
             PlaybackSpeedControl(
               speed: playback.speed,
               onChanged: onSpeedChanged,
+              compact: true,
             ),
-            const SizedBox(width: 14),
-            const Icon(Icons.volume_up_rounded),
-            SizedBox(
-              width: 140,
-              child: Slider(
-                value: playback.volume.clamp(0, 1),
-                onChanged: onVolumeChanged,
-                activeColor: Colors.white,
-                inactiveColor: Colors.white.withValues(alpha: 0.24),
-              ),
-            ),
-            Text(
-              '${(playback.volume * 100).round()}%',
-              style: const TextStyle(fontWeight: FontWeight.w900),
+            const SizedBox(width: 12),
+            PlaybackMuteButton(volume: playback.volume, onTap: onMute),
+            const SizedBox(width: 12),
+            RoundIconButton(
+              icon: Icons.grid_view_rounded,
+              tooltip: 'Back to library (F / E / Esc)',
+              onTap: onBackToLibrary,
             ),
           ],
-        ),
-      ],
+        );
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 840),
+              child: Text(
+                item.title.replaceAll('_', ' '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: compact ? 18 : 20,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              item.artist.isEmpty
+                  ? (item.kind == MediaKind.audio ? 'Audio' : 'Video')
+                  : item.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: FumicTheme.muted, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 840),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 56,
+                    child: Text(
+                      formatDuration(playback.position),
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: FumicTheme.muted,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ProgressTrack(
+                      position: playback.position,
+                      duration: playback.duration,
+                      buffered: playback.buffered,
+                      onSeekFraction: onSeekFraction,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 56,
+                    child: Text(
+                      playback.duration > Duration.zero
+                          ? formatDuration(playback.duration)
+                          : item.durationLabel,
+                      maxLines: 1,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: FumicTheme.muted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (compact) ...[
+              transport,
+              const SizedBox(height: 12),
+              utilities,
+            ] else
+              SizedBox(
+                height: 56,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Align(alignment: Alignment.center, child: transport),
+                    Align(alignment: Alignment.centerRight, child: utilities),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -340,31 +369,5 @@ class _VisualizerBackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _VisualizerBackgroundPainter oldDelegate) {
     return oldDelegate.colors != colors;
-  }
-}
-
-class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 58,
-      height: 58,
-      child: IconButton(
-        tooltip: 'Close player',
-        style: IconButton.styleFrom(
-          backgroundColor: Colors.black.withValues(alpha: 0.30),
-          foregroundColor: Colors.white,
-          shape: CircleBorder(
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
-          ),
-        ),
-        onPressed: onTap,
-        icon: const Icon(Icons.close_rounded, size: 32),
-      ),
-    );
   }
 }

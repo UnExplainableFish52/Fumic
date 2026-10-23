@@ -6,6 +6,7 @@ import '../models/media_kind.dart';
 import '../models/playlist.dart';
 import '../models/visualizer_settings.dart';
 import '../services/playback_service.dart';
+import '../services/cover_art_repository.dart';
 import '../theme/fumic_theme.dart';
 import 'home_library.dart';
 import 'info_page.dart';
@@ -23,6 +24,7 @@ class AppFrame extends StatelessWidget {
     required this.libraryItems,
     required this.selectedItem,
     required this.playback,
+    required this.playbackProgress,
     required this.playlists,
     required this.selectedPlaylistId,
     required this.activePlaylistId,
@@ -35,13 +37,20 @@ class AppFrame extends StatelessWidget {
     required this.visualizerSettings,
     required this.sessionStopwatch,
     required this.homeScrollToTopRequest,
+    required this.playlistCreateShortcutRequest,
+    required this.playlistRenameShortcutRequest,
+    required this.playlistDeleteShortcutRequest,
     required this.searchController,
     required this.searchFocusNode,
     required this.onPageSelected,
     required this.onTabSelected,
     required this.onItemSelected,
     required this.onItemActivated,
+    required this.onCoverAction,
+    required this.hasCustomCover,
     required this.onPlaylistSelected,
+    required this.onPlaylistEditorClosed,
+    required this.onPlaylistEditorFocusChanged,
     required this.onCreatePlaylist,
     required this.onRenamePlaylist,
     required this.onDeletePlaylist,
@@ -56,6 +65,7 @@ class AppFrame extends StatelessWidget {
     required this.onLoop,
     required this.onShuffle,
     required this.onVolumeChanged,
+    required this.onMute,
     required this.onSpeedChanged,
     required this.onSeekFraction,
     required this.onFullPlayer,
@@ -74,6 +84,7 @@ class AppFrame extends StatelessWidget {
   final List<MediaItem> libraryItems;
   final MediaItem? selectedItem;
   final PlaybackSnapshot playback;
+  final ValueNotifier<PlaybackSnapshot> playbackProgress;
   final List<Playlist> playlists;
   final String selectedPlaylistId;
   final String? activePlaylistId;
@@ -86,13 +97,20 @@ class AppFrame extends StatelessWidget {
   final VisualizerSettings visualizerSettings;
   final Stopwatch sessionStopwatch;
   final int homeScrollToTopRequest;
+  final int playlistCreateShortcutRequest;
+  final int playlistRenameShortcutRequest;
+  final int playlistDeleteShortcutRequest;
   final TextEditingController searchController;
   final FocusNode searchFocusNode;
   final ValueChanged<FumicPage> onPageSelected;
   final ValueChanged<MediaKind> onTabSelected;
   final ValueChanged<MediaItem> onItemSelected;
   final ValueChanged<MediaItem> onItemActivated;
+  final Future<void> Function(MediaItem, CoverArtAction) onCoverAction;
+  final bool Function(MediaItem) hasCustomCover;
   final ValueChanged<String> onPlaylistSelected;
+  final VoidCallback onPlaylistEditorClosed;
+  final ValueChanged<bool> onPlaylistEditorFocusChanged;
   final Future<void> Function(String name) onCreatePlaylist;
   final Future<void> Function(String id, String name) onRenamePlaylist;
   final Future<void> Function(String id) onDeletePlaylist;
@@ -108,6 +126,7 @@ class AppFrame extends StatelessWidget {
   final VoidCallback onLoop;
   final VoidCallback onShuffle;
   final ValueChanged<double> onVolumeChanged;
+  final VoidCallback onMute;
   final ValueChanged<double> onSpeedChanged;
   final ValueChanged<double> onSeekFraction;
   final VoidCallback onFullPlayer;
@@ -124,7 +143,7 @@ class AppFrame extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
           child: TopBar(
             page: page,
             tab: tab,
@@ -136,12 +155,16 @@ class AppFrame extends StatelessWidget {
         ),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
             child: _ContentPanel(
               child: switch (page) {
                 FumicPage.home => HomeLibrary(
                   tab: tab,
                   selectedItemPath: selectedItem?.path,
+                  currentItemPath: playback.currentItem?.path,
+                  playing: playback.playing,
+                  query: searchController.text,
+                  libraryError: libraryError,
                   items: visibleItems,
                   scanning: scanning,
                   enrichingMetadata: enrichingMetadata,
@@ -151,8 +174,13 @@ class AppFrame extends StatelessWidget {
                   sessionStopwatch: sessionStopwatch,
                   scrollToTopRequest: homeScrollToTopRequest,
                   onPickFolder: onPickFolder,
+                  onRefreshLibrary: onRefreshLibrary,
+                  onClearSearch: searchController.clear,
+                  onTabSelected: onTabSelected,
                   onItemSelected: onItemSelected,
                   onItemActivated: onItemActivated,
+                  onCoverAction: onCoverAction,
+                  hasCustomCover: hasCustomCover,
                 ),
                 FumicPage.playlists => PlaylistsPage(
                   playlists: playlists,
@@ -160,10 +188,15 @@ class AppFrame extends StatelessWidget {
                   activePlaylistId: activePlaylistId,
                   currentItemPath: playback.currentItem?.path,
                   playbackPlaying: playback.playing,
+                  createShortcutRequest: playlistCreateShortcutRequest,
+                  renameShortcutRequest: playlistRenameShortcutRequest,
+                  deleteShortcutRequest: playlistDeleteShortcutRequest,
                   libraryItems: libraryItems,
                   addCandidate: playback.currentItem ?? selectedItem,
                   scanning: scanning,
                   onPlaylistSelected: onPlaylistSelected,
+                  onEditorClosed: onPlaylistEditorClosed,
+                  onEditorFocusChanged: onPlaylistEditorFocusChanged,
                   onCreatePlaylist: onCreatePlaylist,
                   onRenamePlaylist: onRenamePlaylist,
                   onDeletePlaylist: onDeletePlaylist,
@@ -175,6 +208,11 @@ class AppFrame extends StatelessWidget {
                   onReorderEntry: onReorderPlaylistEntry,
                 ),
                 FumicPage.settings => SettingsPage(
+                  playback: playback,
+                  onVolumeChanged: onVolumeChanged,
+                  onSpeedChanged: onSpeedChanged,
+                  onLoop: onLoop,
+                  onShuffle: onShuffle,
                   folders: folders,
                   scanning: scanning,
                   libraryError: libraryError,
@@ -194,18 +232,23 @@ class AppFrame extends StatelessWidget {
             ),
           ),
         ),
-        PlayerBar(
-          item: playback.currentItem ?? selectedItem,
-          playback: playback,
-          onPlayPause: onPlayPause,
-          onNext: onNext,
-          onPrevious: onPrevious,
-          onLoop: onLoop,
-          onShuffle: onShuffle,
-          onVolumeChanged: onVolumeChanged,
-          onSpeedChanged: onSpeedChanged,
-          onSeekFraction: onSeekFraction,
-          onFullPlayer: onFullPlayer,
+        ValueListenableBuilder<PlaybackSnapshot>(
+          valueListenable: playbackProgress,
+          builder: (context, progress, _) => RepaintBoundary(
+            child: PlayerBar(
+              item: playback.currentItem ?? selectedItem,
+              playback: progress,
+              onPlayPause: onPlayPause,
+              onNext: onNext,
+              onPrevious: onPrevious,
+              onLoop: onLoop,
+              onShuffle: onShuffle,
+              onMute: onMute,
+              onSpeedChanged: onSpeedChanged,
+              onSeekFraction: onSeekFraction,
+              onFullPlayer: onFullPlayer,
+            ),
+          ),
         ),
       ],
     );
@@ -221,11 +264,12 @@ class _ContentPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: FumicTheme.panel,
+      decoration: FumicTheme.glassDecoration(
+        context,
+        filled: false,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: child,
     );
   }

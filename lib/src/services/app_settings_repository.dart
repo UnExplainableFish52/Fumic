@@ -12,12 +12,16 @@ abstract class AppSettingsRepository {
 }
 
 class JsonAppSettingsRepository implements AppSettingsRepository {
-  const JsonAppSettingsRepository();
+  const JsonAppSettingsRepository({Directory? supportDirectory})
+    : _supportDirectory = supportDirectory;
 
   static const _fileName = 'fumic_settings.json';
+  static Future<void> _writeQueue = Future<void>.value();
+  final Directory? _supportDirectory;
 
   @override
   Future<VisualizerSettings> loadVisualizerSettings() async {
+    await _writeQueue;
     final payload = await _readPayload();
     final settings = payload['visualizerSettings'];
     if (settings is Map<String, dynamic>) {
@@ -27,13 +31,26 @@ class JsonAppSettingsRepository implements AppSettingsRepository {
   }
 
   @override
-  Future<void> saveVisualizerSettings(VisualizerSettings settings) async {
+  Future<void> saveVisualizerSettings(VisualizerSettings settings) {
+    // Slider events can arrive before the previous disk write has completed.
+    final write = _writeQueue.then((_) => _writeSettings(settings));
+    _writeQueue = write.catchError((Object _) {});
+    return write;
+  }
+
+  Future<void> _writeSettings(VisualizerSettings settings) async {
     final file = await _settingsFile();
     final payload = await _readPayload();
     payload['visualizerSettings'] = settings.toJson();
     await file.parent.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(encoder.convert(payload), flush: true);
+    final temporary = File('${file.path}.tmp');
+    try {
+      await temporary.writeAsString(encoder.convert(payload), flush: true);
+      await temporary.rename(file.path);
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
   }
 
   Future<Map<String, dynamic>> _readPayload() async {
@@ -53,7 +70,8 @@ class JsonAppSettingsRepository implements AppSettingsRepository {
   }
 
   Future<File> _settingsFile() async {
-    final directory = await getApplicationSupportDirectory();
+    final directory =
+        _supportDirectory ?? await getApplicationSupportDirectory();
     return File(p.join(directory.path, _fileName));
   }
 }

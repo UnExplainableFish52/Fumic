@@ -26,65 +26,71 @@ class TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 980;
+        final compact = constraints.maxWidth < 1180;
+        final narrow = constraints.maxWidth < 720;
         return Container(
-          height: compact ? 168 : 106,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 28),
-          decoration: BoxDecoration(
-            color: FumicTheme.panel,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 16 : 24,
+            vertical: 14,
           ),
-          child: compact ? _compactContent() : _wideContent(),
+          decoration: FumicTheme.glassDecoration(context, elevated: true),
+          child: compact ? _compactContent(narrow: narrow) : _wideContent(),
         );
       },
     );
   }
 
-  Widget _compactContent() {
+  Widget _navigation() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final entry in const {
+          FumicPage.home: 'Home',
+          FumicPage.playlists: 'Playlists',
+          FumicPage.settings: 'Settings',
+          FumicPage.info: 'Info',
+        }.entries)
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: _NavButton(
+              label: entry.value,
+              selected: page == entry.key,
+              onTap: () => onPageSelected(entry.key),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _compactContent({required bool narrow}) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Row(
           children: [
             const _Brand(),
             const Spacer(),
-            SegmentedMediaTabs(tab: tab, onTabSelected: onTabSelected),
+            if (narrow)
+              SegmentedMediaTabs(tab: tab, onTabSelected: onTabSelected)
+            else
+              _navigation(),
           ],
         ),
         const SizedBox(height: 12),
+        if (narrow) ...[_navigation(), const SizedBox(height: 12)],
         Row(
           children: [
-            _NavButton(
-              label: 'Home',
-              selected: page == FumicPage.home,
-              onTap: () => onPageSelected(FumicPage.home),
-            ),
-            const SizedBox(width: 8),
-            _NavButton(
-              label: 'Playlists',
-              selected: page == FumicPage.playlists,
-              onTap: () => onPageSelected(FumicPage.playlists),
-            ),
-            const SizedBox(width: 8),
-            _NavButton(
-              label: 'Settings',
-              selected: page == FumicPage.settings,
-              onTap: () => onPageSelected(FumicPage.settings),
-            ),
-            const SizedBox(width: 8),
-            _NavButton(
-              label: 'Info',
-              selected: page == FumicPage.info,
-              onTap: () => onPageSelected(FumicPage.info),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: _SearchField(
                 controller: searchController,
                 focusNode: searchFocusNode,
               ),
             ),
+            if (!narrow) ...[
+              const SizedBox(width: 16),
+              SegmentedMediaTabs(tab: tab, onTabSelected: onTabSelected),
+            ],
           ],
         ),
       ],
@@ -139,52 +145,46 @@ class TopBar extends StatelessWidget {
   }
 }
 
-class _Brand extends StatefulWidget {
+class _Brand extends StatelessWidget {
   const _Brand();
-
-  @override
-  State<_Brand> createState() => _BrandState();
-}
-
-class _BrandState extends State<_Brand> {
-  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     return SelectionContainer.disabled(
-      child: MouseRegion(
-        cursor: SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: Semantics(
-          image: true,
-          label: 'Fumic',
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
-            width: 184,
-            height: 82,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: _hovered
-                    ? FumicTheme.accent.withValues(alpha: 0.72)
-                    : Colors.transparent,
-                width: 1.2,
-              ),
-            ),
-            child: Center(
-              child: Image.asset(
+      child: Semantics(
+        image: true,
+        label: 'Fumic',
+        excludeSemantics: true,
+        child: SizedBox(
+          width: 156,
+          height: 48,
+          child: Row(
+            children: [
+              Image.asset(
                 'icons/fumic_logo_trans.png',
-                width: 74,
-                height: 74,
+                width: 42,
+                height: 42,
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.high,
                 excludeFromSemantics: true,
                 gaplessPlayback: true,
               ),
-            ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Fumic',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -204,7 +204,7 @@ class _SearchField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       textInputAction: TextInputAction.search,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         hintText: 'Search media (Ctrl + K)',
         prefixIcon: const Icon(Icons.search_rounded),
@@ -216,8 +216,8 @@ class _SearchField extends StatelessWidget {
                 onPressed: controller.clear,
               ),
         filled: true,
-        fillColor: const Color(0xFF070B11),
-        contentPadding: const EdgeInsets.symmetric(vertical: 17),
+        fillColor: FumicTheme.inset,
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
         border: _border(Colors.white.withValues(alpha: 0.10)),
         enabledBorder: _border(Colors.white.withValues(alpha: 0.10)),
         focusedBorder: _border(FumicTheme.accent, width: 2),
@@ -253,17 +253,17 @@ class _NavButton extends StatelessWidget {
         style: ButtonStyle(
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             if (selected) {
-              return const Color(0xFF172A33);
+              return FumicTheme.accent.withValues(alpha: 0.10);
             }
             if (states.contains(WidgetState.hovered) ||
                 states.contains(WidgetState.focused)) {
               return Colors.white.withValues(alpha: 0.045);
             }
-            return Colors.transparent;
+            return const Color(0x80101828);
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (selected) {
-              return Colors.white;
+              return FumicTheme.accent;
             }
             if (states.contains(WidgetState.hovered) ||
                 states.contains(WidgetState.focused)) {
@@ -275,11 +275,11 @@ class _NavButton extends StatelessWidget {
             FumicTheme.accent.withValues(alpha: 0.06),
           ),
           padding: WidgetStateProperty.all(
-            const EdgeInsets.symmetric(horizontal: 20),
+            const EdgeInsets.symmetric(horizontal: 16),
           ),
           shape: WidgetStateProperty.resolveWith((states) {
             final borderColor = selected
-                ? FumicTheme.accent.withValues(alpha: 0.62)
+                ? FumicTheme.accent.withValues(alpha: 0.22)
                 : states.contains(WidgetState.hovered) ||
                       states.contains(WidgetState.focused)
                 ? FumicTheme.accent.withValues(alpha: 0.24)
@@ -293,7 +293,7 @@ class _NavButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
@@ -317,8 +317,9 @@ class SegmentedMediaTabs extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFF171E2A),
+        color: FumicTheme.inset,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: FumicTheme.edge),
       ),
       child: Row(
         children: [
@@ -352,23 +353,26 @@ class _SegmentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 108,
-      height: 44,
+      width: 80,
+      height: 40,
       child: TextButton(
         onPressed: onTap,
         style: TextButton.styleFrom(
           foregroundColor: selected ? Colors.white : Colors.white70,
           backgroundColor: selected
-              ? const Color(0xFF26313D)
+              ? FumicTheme.accent.withValues(alpha: 0.12)
               : Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(9),
             side: selected
-                ? const BorderSide(color: FumicTheme.accent, width: 1.5)
+                ? BorderSide(color: FumicTheme.accent.withValues(alpha: 0.3))
                 : BorderSide.none,
           ),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 18)),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

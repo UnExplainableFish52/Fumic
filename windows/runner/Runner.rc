@@ -92,10 +92,10 @@ BEGIN
             VALUE "CompanyName", "TheIdealDev52" "\0"
             VALUE "FileDescription", "Fumic - Magical Media Player" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "Fumic" "\0"
+            VALUE "InternalName", "fumic" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 Saksham Sharma. All rights reserved." "\0"
-            VALUE "OriginalFilename", "Fumic.exe" "\0"
-            VALUE "ProductName", "Fumic" "\0"
+            VALUE "OriginalFilename", "fumic.exe" "\0"
+            VALUE "ProductName", "Fumic - Magical Media Player" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

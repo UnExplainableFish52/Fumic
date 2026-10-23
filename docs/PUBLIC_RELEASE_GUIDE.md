@@ -1,6 +1,6 @@
-# Fumic Public Release Guide
+# Fumic - Magical Media Player Public Release Guide
 
-This guide is for publishing Fumic `2.6.2` as a public Windows release on GitHub and preparing for Microsoft Store distribution later.
+This guide is for publishing Fumic - Magical Media Player `2.6.3` as a public Windows release on GitHub and preparing for Microsoft Store distribution later.
 
 ## Release Strategy
 
@@ -9,22 +9,22 @@ Publish two downloadable files:
 1. A normal Windows setup installer:
 
 ```text
-Fumic-Setup-2.6.2-windows-x64.exe
+Fumic-Setup-2.6.3-windows-x64.exe
 ```
 
 2. An optional portable ZIP for technical users:
 
 ```text
-Fumic-2.6.2-windows-x64-portable.zip
+Fumic-2.6.3-windows-x64-portable.zip
 ```
 
 Do not upload only this file:
 
 ```text
-build\windows\x64\runner\Release\Fumic.exe
+build\windows\x64\runner\Release\fumic.exe
 ```
 
-That EXE is not enough by itself. Flutter Windows release builds also need the `data` folder and several DLL files beside the executable. If you upload only `Fumic.exe`, the app can fail to start on another machine.
+That EXE is not enough by itself. Flutter Windows release builds also need the `data` folder and several DLL files beside the executable. If you upload only `fumic.exe`, the app can fail to start on another machine.
 
 ## Recommended GitHub Release Assets
 
@@ -32,8 +32,8 @@ Upload these to the GitHub release:
 
 | File | Purpose |
 | --- | --- |
-| `Fumic-Setup-2.6.2-windows-x64.exe` | Main download for normal users. |
-| `Fumic-2.6.2-windows-x64-portable.zip` | Optional portable build for users who do not want an installer. |
+| `Fumic-Setup-2.6.3-windows-x64.exe` | Main download for normal users. |
+| `Fumic-2.6.3-windows-x64-portable.zip` | Optional portable build for users who do not want an installer. |
 | `SHA256SUMS.txt` | Lets users verify downloads. |
 
 GitHub automatically adds source code ZIP/TAR archives for the tagged commit, so you do not need to upload source manually unless you want a custom source package.
@@ -47,7 +47,7 @@ flutter clean
 flutter pub get
 flutter test
 flutter analyze
-flutter build windows --release --build-name=2.6.2 --build-number=262
+flutter build windows --release --build-name=2.6.3 --build-number=0
 ```
 
 The Windows build output should be here:
@@ -56,7 +56,14 @@ The Windows build output should be here:
 build\windows\x64\runner\Release
 ```
 
-The folder should contain `Fumic.exe`, `data`, Flutter DLLs, media_kit DLLs, and other runtime files.
+The folder should contain `fumic.exe`, `data`, Flutter DLLs, media_kit DLLs, and other runtime files.
+
+Create the portable ZIP and setup installer before running `dart run msix:create`.
+Run these packaging steps sequentially: the MSIX tool temporarily adds files to
+the release directory and removes runtime DLLs when it cleans up. Rebuild Windows
+if you need another portable ZIP or installer after MSIX packaging. The CMake
+install step bundles the Visual C++ runtime needed on machines without developer
+tools; the installer script rejects a bundle missing those DLLs.
 
 ## Create The Portable ZIP
 
@@ -64,13 +71,13 @@ Create a `dist` folder and ZIP the entire release folder contents:
 
 ```powershell
 New-Item -ItemType Directory -Force dist
-Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath dist\Fumic-2.6.2-windows-x64-portable.zip -Force
+Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath dist\Fumic-2.6.3-windows-x64-portable.zip -Force
 ```
 
 Users install the portable version by extracting the ZIP and running:
 
 ```text
-Fumic.exe
+fumic.exe
 ```
 
 ## Create The Setup Installer
@@ -90,7 +97,7 @@ Install Inno Setup 6, then compile the script:
 Expected output:
 
 ```text
-dist\Fumic-Setup-2.6.2-windows-x64.exe
+dist\Fumic-Setup-2.6.3-windows-x64.exe
 ```
 
 This setup file should be the main GitHub release download.
@@ -131,23 +138,23 @@ For the smoothest public experience, the best long-term path is:
 6. Create a Git tag:
 
 ```powershell
-git tag v2.6.2
-git push origin v2.6.2
+git tag v2.6.3
+git push origin v2.6.3
 ```
 
 7. On GitHub, open the repository and go to Releases.
 8. Click "Draft a new release".
-9. Choose tag `v2.6.2`.
+9. Choose tag `v2.6.3`.
 10. Title it:
 
 ```text
-Fumic 2.6.2 - Flutter release
+Fumic - Magical Media Player 2.6.3 - Flutter release
 ```
 
 11. Paste the release notes from:
 
 ```text
-docs\RELEASE_NOTES_2.6.2.md
+docs\RELEASE_NOTES_2.6.3.md
 ```
 
 12. Upload the installer, portable ZIP, and checksum file.
@@ -158,8 +165,8 @@ docs\RELEASE_NOTES_2.6.2.md
 After creating release files:
 
 ```powershell
-Get-FileHash dist\Fumic-Setup-2.6.2-windows-x64.exe -Algorithm SHA256
-Get-FileHash dist\Fumic-2.6.2-windows-x64-portable.zip -Algorithm SHA256
+Get-FileHash dist\Fumic-Setup-2.6.3-windows-x64.exe -Algorithm SHA256
+Get-FileHash dist\Fumic-2.6.3-windows-x64-portable.zip -Algorithm SHA256
 ```
 
 Put the output into:
@@ -171,8 +178,8 @@ SHA256SUMS.txt
 Recommended format:
 
 ```text
-<hash>  Fumic-Setup-2.6.2-windows-x64.exe
-<hash>  Fumic-2.6.2-windows-x64-portable.zip
+<hash>  Fumic-Setup-2.6.3-windows-x64.exe
+<hash>  Fumic-2.6.3-windows-x64-portable.zip
 ```
 
 ## Microsoft Store Plan

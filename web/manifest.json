@@ -1,11 +1,11 @@
 {
-    "name": "Fumic",
+    "name": "Fumic - Magical Media Player",
     "short_name": "Fumic",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Fumic is an open-source, offline-first, keyboard-driven media player for Windows, now built with Flutter.",
+    "description": "Fumic - Magical Media Player is an open-source, offline-first, keyboard-driven media player for Windows, now built with Flutter.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

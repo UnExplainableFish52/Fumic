@@ -1,10 +1,10 @@
-# Fumic 2.6.2 - Release Notes
+# Fumic - Magical Media Player 2.6.2 - Release Notes
 
-Fumic `2.6.2` is a small Windows release focused on playback polish and release cleanup. It keeps the new Home timer and video fullscreen behavior, then fixes the shuffle toggle so it no longer restarts the current song.
+Fumic - Magical Media Player `2.6.2` is a small Windows release focused on playback polish and release cleanup. It keeps the new Home timer and video fullscreen behavior, then fixes the shuffle toggle so it no longer restarts the current song.
 
 ## What Is Fumic?
 
-Fumic is an open-source, offline-first, keyboard-driven media player for Windows. It is built for local music and video playback without accounts, ads, telemetry, streaming lock-in, or unnecessary bloat.
+Fumic - Magical Media Player is an open-source, offline-first, keyboard-driven media player for Windows. It is built for local music and video playback without accounts, ads, telemetry, streaming lock-in, or unnecessary bloat.
 
 ## Changelog
 
@@ -63,7 +63,7 @@ Fumic-2.6.2-windows-x64-portable.zip
 Extract the ZIP, then run:
 
 ```text
-Fumic.exe
+fumic.exe
 ```
 
 Do not run the EXE directly from inside the ZIP archive. Extract the folder first.

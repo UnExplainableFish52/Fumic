@@ -4,7 +4,7 @@ project(Fumic LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "Fumic")
+set(BINARY_NAME "fumic")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -75,11 +75,24 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# Bundle the compiler's redistributable runtime next to the executable so the
+# installer and portable ZIP also work on PCs without Visual Studio installed.
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+include(InstallRequiredSystemLibraries)
+install(PROGRAMS ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
+  DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  CONFIGURATIONS Profile;Release
+  COMPONENT Runtime)
+
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
+
+# Include Fumic's declared GPLv3 license in installers and portable releases.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
 
 if(PLUGIN_BUNDLED_LIBRARIES)
   install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"

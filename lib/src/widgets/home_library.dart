@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/media_item.dart';
 import '../models/media_kind.dart';
 import '../theme/fumic_theme.dart';
+import '../services/cover_art_repository.dart';
 import 'shared.dart';
 
 class HomeLibrary extends StatefulWidget {
@@ -12,6 +13,10 @@ class HomeLibrary extends StatefulWidget {
     super.key,
     required this.tab,
     required this.selectedItemPath,
+    required this.currentItemPath,
+    required this.playing,
+    required this.query,
+    required this.libraryError,
     required this.items,
     required this.scanning,
     required this.enrichingMetadata,
@@ -21,12 +26,21 @@ class HomeLibrary extends StatefulWidget {
     required this.sessionStopwatch,
     required this.scrollToTopRequest,
     required this.onPickFolder,
+    required this.onRefreshLibrary,
+    required this.onClearSearch,
+    required this.onTabSelected,
     required this.onItemSelected,
     required this.onItemActivated,
+    required this.onCoverAction,
+    required this.hasCustomCover,
   });
 
   final MediaKind tab;
   final String? selectedItemPath;
+  final String? currentItemPath;
+  final bool playing;
+  final String query;
+  final String? libraryError;
   final List<MediaItem> items;
   final bool scanning;
   final bool enrichingMetadata;
@@ -36,8 +50,13 @@ class HomeLibrary extends StatefulWidget {
   final Stopwatch sessionStopwatch;
   final int scrollToTopRequest;
   final VoidCallback onPickFolder;
+  final VoidCallback onRefreshLibrary;
+  final VoidCallback onClearSearch;
+  final ValueChanged<MediaKind> onTabSelected;
   final ValueChanged<MediaItem> onItemSelected;
   final ValueChanged<MediaItem> onItemActivated;
+  final Future<void> Function(MediaItem, CoverArtAction) onCoverAction;
+  final bool Function(MediaItem) hasCustomCover;
 
   @override
   State<HomeLibrary> createState() => _HomeLibraryState();
@@ -56,12 +75,14 @@ class _HomeLibraryState extends State<HomeLibrary> {
   @override
   void didUpdateWidget(HomeLibrary oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.scrollToTopRequest != widget.scrollToTopRequest) {
+    if (oldWidget.scrollToTopRequest != widget.scrollToTopRequest ||
+        oldWidget.query != widget.query) {
       _scrollToTop();
       return;
     }
-    if (oldWidget.selectedItemPath != widget.selectedItemPath ||
-        !_sameItemPaths(oldWidget.items, widget.items)) {
+    if (oldWidget.items.isNotEmpty &&
+        (oldWidget.selectedItemPath != widget.selectedItemPath ||
+            !_sameItemPaths(oldWidget.items, widget.items))) {
       _scheduleSelectedItemIntoView();
     }
   }
@@ -74,21 +95,6 @@ class _HomeLibraryState extends State<HomeLibrary> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.scanning) {
-      return const _LibraryStatus(
-        icon: Icons.manage_search_rounded,
-        title: 'Scanning media folders...',
-        subtitle: 'Fumic is indexing supported audio and video files.',
-      );
-    }
-
-    if (widget.items.isEmpty) {
-      return _EmptyLibrary(
-        hasFolders: widget.hasFolders,
-        onPickFolder: widget.onPickFolder,
-      );
-    }
-
     final groups = _groupedItems(widget.items);
     final slivers = <Widget>[
       SliverToBoxAdapter(
@@ -101,9 +107,70 @@ class _HomeLibraryState extends State<HomeLibrary> {
             videoCount: widget.videoCount,
             sessionStopwatch: widget.sessionStopwatch,
             enrichingMetadata: widget.enrichingMetadata,
+            scanning: widget.scanning,
+            query: widget.query,
+            onPickFolder: widget.onPickFolder,
+            onRefreshLibrary: widget.onRefreshLibrary,
           ),
         ),
       ),
+      if (widget.libraryError != null)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+            child: Semantics(
+              liveRegion: true,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF362A21),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.folder_off_outlined,
+                      color: Color(0xFFFFCC80),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Some folders could not be read. Check that your library folders are available, then refresh.',
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: widget.onRefreshLibrary,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      if (widget.scanning)
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+        ),
+      if (widget.items.isEmpty)
+        SliverToBoxAdapter(
+          child: _EmptyLibrary(
+            hasFolders: widget.hasFolders,
+            searching: widget.query.trim().isNotEmpty,
+            scanning: widget.scanning,
+            tab: widget.tab,
+            otherTabCount: widget.tab == MediaKind.audio
+                ? widget.videoCount
+                : widget.audioCount,
+            onClearSearch: widget.onClearSearch,
+            onSwitchTab: () => widget.onTabSelected(
+              widget.tab == MediaKind.audio ? MediaKind.video : MediaKind.audio,
+            ),
+          ),
+        ),
     ];
 
     for (final group in groups.entries) {
@@ -114,9 +181,9 @@ class _HomeLibraryState extends State<HomeLibrary> {
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
           sliver: SliverGrid.builder(
             itemCount: count,
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 470,
-              mainAxisExtent: 134,
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: widget.tab == MediaKind.audio ? 560 : 470,
+              mainAxisExtent: widget.tab == MediaKind.audio ? 104 : 134,
               mainAxisSpacing: 14,
               crossAxisSpacing: 14,
             ),
@@ -126,7 +193,11 @@ class _HomeLibraryState extends State<HomeLibrary> {
               return _MediaTile(
                 key: selected ? _selectedTileKey : ValueKey(item.path),
                 item: item,
+                hasCustomCover: widget.hasCustomCover(item),
+                onCoverAction: (action) => widget.onCoverAction(item, action),
                 selected: selected,
+                current: item.path == widget.currentItemPath,
+                playing: widget.playing,
                 onTap: () => widget.onItemSelected(item),
                 onDoubleTap: () => widget.onItemActivated(item),
               );
@@ -136,8 +207,13 @@ class _HomeLibraryState extends State<HomeLibrary> {
       );
     }
 
-    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 120)));
-    return CustomScrollView(controller: _scrollController, slivers: slivers);
+    if (widget.items.isNotEmpty) {
+      slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 28)));
+    }
+    return Scrollbar(
+      controller: _scrollController,
+      child: CustomScrollView(controller: _scrollController, slivers: slivers),
+    );
   }
 
   void _scrollToTop() {
@@ -208,6 +284,10 @@ class _LibrarySummary extends StatelessWidget {
     required this.videoCount,
     required this.sessionStopwatch,
     required this.enrichingMetadata,
+    required this.scanning,
+    required this.query,
+    required this.onPickFolder,
+    required this.onRefreshLibrary,
   });
 
   final MediaKind tab;
@@ -216,36 +296,77 @@ class _LibrarySummary extends StatelessWidget {
   final int videoCount;
   final Stopwatch sessionStopwatch;
   final bool enrichingMetadata;
+  final bool scanning;
+  final String query;
+  final VoidCallback onPickFolder;
+  final VoidCallback onRefreshLibrary;
 
   @override
   Widget build(BuildContext context) {
     final label = tab == MediaKind.audio ? 'Audio library' : 'Video library';
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    final total = tab == MediaKind.audio ? audioCount : videoCount;
+    final noun = tab == MediaKind.audio ? 'tracks' : 'videos';
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SoftBadge(text: '$itemCount visible'),
-              SoftBadge(text: '$audioCount audio'),
-              SoftBadge(text: '$videoCount video'),
-              if (enrichingMetadata) const SoftBadge(text: 'Loading details'),
-            ],
-          ),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
         ),
-        const SizedBox(width: 12),
-        _SessionTimerBadge(stopwatch: sessionStopwatch),
+        const SizedBox(height: 6),
+        Text(
+          scanning
+              ? 'Looking for your music and videos…'
+              : query.trim().isNotEmpty
+              ? '$itemCount results in $total $noun'
+              : '$total $noun · Your files, always local',
+          style: const TextStyle(color: FumicTheme.muted, fontSize: 14),
+        ),
       ],
+    );
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (enrichingMetadata) const SoftBadge(text: 'Loading details'),
+        OutlinedButton.icon(
+          onPressed: scanning ? null : onRefreshLibrary,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: const Text('Refresh'),
+        ),
+        FilledButton.icon(
+          onPressed: scanning ? null : onPickFolder,
+          icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+          label: const Text('Add folder'),
+        ),
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (constraints.maxWidth >= 760)
+              Row(
+                children: [
+                  Expanded(child: heading),
+                  if (constraints.maxWidth >= 1180) ...[
+                    _SessionTimerBadge(stopwatch: sessionStopwatch),
+                    const SizedBox(width: 16),
+                  ],
+                  const SizedBox(width: 16),
+                  actions,
+                ],
+              )
+            else ...[
+              heading,
+              const SizedBox(height: 16),
+              actions,
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -267,6 +388,15 @@ class _SessionTimerBadgeState extends State<_SessionTimerBadge> {
   void initState() {
     super.initState();
     _elapsed = widget.stopwatch.elapsed;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _timer?.cancel();
+    _timer = null;
+    _elapsed = widget.stopwatch.elapsed;
+    if (!TickerMode.valuesOf(context).enabled) return;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) {
         return;
@@ -302,13 +432,6 @@ class _SessionTimerBadgeState extends State<_SessionTimerBadge> {
           color: const Color(0xFF112832).withValues(alpha: 0.86),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: FumicTheme.accent.withValues(alpha: 0.42)),
-          boxShadow: [
-            BoxShadow(
-              color: FumicTheme.accent.withValues(alpha: 0.12),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -358,18 +481,16 @@ class _GroupHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+      padding: const EdgeInsets.fromLTRB(26, 22, 26, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Divider(color: Colors.white.withValues(alpha: 0.08)),
-          const SizedBox(height: 10),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 56,
+              fontSize: 13,
               height: 1,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w600,
               color: Color(0xFFD6DAE2),
             ),
           ),
@@ -379,151 +500,216 @@ class _GroupHeading extends StatelessWidget {
   }
 }
 
-class _MediaTile extends StatelessWidget {
+class _MediaTile extends StatefulWidget {
   const _MediaTile({
     super.key,
     required this.item,
     required this.selected,
+    required this.current,
+    required this.playing,
     required this.onTap,
     required this.onDoubleTap,
+    required this.onCoverAction,
+    required this.hasCustomCover,
   });
-
   final MediaItem item;
   final bool selected;
+  final bool current;
+  final bool playing;
   final VoidCallback onTap;
   final VoidCallback onDoubleTap;
+  final Future<void> Function(CoverArtAction) onCoverAction;
+  final bool hasCustomCover;
+
+  @override
+  State<_MediaTile> createState() => _MediaTileState();
+}
+
+class _MediaTileState extends State<_MediaTile> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  Future<void> _showCoverMenu(Offset position) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final local = overlay.globalToLocal(position);
+    final action = await showMenu<CoverArtAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        local & Size.zero,
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        const PopupMenuItem(
+          value: CoverArtAction.chooseSong,
+          child: Text('Choose song cover'),
+        ),
+        const PopupMenuItem(
+          value: CoverArtAction.chooseFolder,
+          child: Text('Choose cover for this folder'),
+        ),
+        if (widget.hasCustomCover) ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+            value: CoverArtAction.restoreSong,
+            child: Text('Restore original song cover'),
+          ),
+          const PopupMenuItem(
+            value: CoverArtAction.restoreFolder,
+            child: Text('Restore covers in this folder'),
+          ),
+        ],
+      ],
+    );
+    if (action != null && mounted) await widget.onCoverAction(action);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(12);
-    final innerRadius = BorderRadius.circular(10);
-    final borderWidth = selected ? 2.4 : 1.0;
-
+    final item = widget.item;
+    final baseFill = FumicTheme.cardFill(context, hovered: _hovered);
+    final emphasized = widget.selected || _focused;
+    final radius = BorderRadius.circular(16);
     return Semantics(
       button: true,
-      selected: selected,
-      label: selected
-          ? '${item.title}, selected media item'
-          : '${item.title}, media item',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          onDoubleTap: onDoubleTap,
-          borderRadius: borderRadius,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            padding: EdgeInsets.all(borderWidth),
-            decoration: BoxDecoration(
-              gradient: selected
-                  ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF20F3E3),
-                        Color(0xFF42A5FF),
-                        Color(0xFF8B6CFF),
-                        Color(0xFF20F3E3),
-                      ],
-                    )
-                  : null,
-              color: selected ? null : Colors.white.withValues(alpha: 0.09),
-              borderRadius: borderRadius,
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: FumicTheme.accent.withValues(alpha: 0.26),
-                        blurRadius: 26,
-                        offset: const Offset(0, 14),
-                      ),
-                    ]
-                  : null,
+      selected: widget.selected,
+      onTap: widget.onDoubleTap,
+      hint: 'Double-click to play. Ctrl + Enter plays the selected track.',
+      label:
+          '${item.title}, ${item.artist}${widget.current
+              ? widget.playing
+                    ? ", now playing"
+                    : ", paused"
+              : ""}',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? const Color(
+                    0xFF293250,
+                  ).withValues(alpha: baseFill.a.clamp(0.86, 1.0))
+                : _focused
+                ? Color.alphaBlend(
+                    FumicTheme.brand.withValues(alpha: 0.12),
+                    baseFill,
+                  )
+                : baseFill,
+            borderRadius: radius,
+            border: Border.all(
+              color: emphasized
+                  ? FumicTheme.brand
+                  : widget.current
+                  ? FumicTheme.accent
+                  : Colors.white.withValues(alpha: _hovered ? 0.18 : 0.08),
+              // A constant width keeps the content still as selection moves.
+              width: 2,
             ),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: selected
-                    ? const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF123842), Color(0xFF1F2D3B)],
-                      )
-                    : null,
-                color: selected ? null : const Color(0xFF232A35),
-                borderRadius: innerRadius,
-              ),
-              child: Row(
-                children: [
-                  Artwork(
-                    colors: item.colors,
-                    size: 96,
-                    icon: kindIcon(item),
-                    thumbnailPath: item.thumbnailPath,
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (emphasized)
+                Positioned(
+                  left: 5,
+                  top: 18,
+                  bottom: 18,
+                  child: Container(
+                    width: 4,
+                    decoration: BoxDecoration(
+                      color: FumicTheme.brand,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
+                ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: widget.onTap,
+                  onDoubleTap: widget.onDoubleTap,
+                  onSecondaryTapDown: item.kind == MediaKind.audio
+                      ? (details) => _showCoverMenu(details.globalPosition)
+                      : null,
+                  onFocusChange: (value) => setState(() => _focused = value),
+                  borderRadius: radius,
+                  hoverColor: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            if (selected)
-                              Container(
-                                width: 24,
-                                height: 24,
-                                margin: const EdgeInsets.only(right: 8),
-                                decoration: const BoxDecoration(
-                                  color: FumicTheme.accent,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.play_arrow_rounded,
-                                  size: 18,
-                                  color: Color(0xFF051014),
-                                ),
-                              ),
-                            Expanded(
-                              child: Text(
+                        Artwork(
+                          colors: item.colors,
+                          size: item.kind == MediaKind.audio ? 62 : 76,
+                          icon: kindIcon(item),
+                          thumbnailPath: item.thumbnailPath,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
                                 item.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.current
+                                      ? FumicTheme.accent
+                                      : FumicTheme.text,
                                 ),
                               ),
+                              const SizedBox(height: 5),
+                              Text(
+                                item.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: FumicTheme.muted,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              if (item.kind == MediaKind.video) ...[
+                                const SizedBox(height: 5),
+                                Text(
+                                  item.durationLabel,
+                                  style: const TextStyle(
+                                    color: FumicTheme.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        if (widget.current)
+                          Icon(
+                            widget.playing
+                                ? Icons.graphic_eq_rounded
+                                : Icons.pause_rounded,
+                            color: FumicTheme.accent,
+                            size: 20,
+                          )
+                        else if (item.kind == MediaKind.audio)
+                          Text(
+                            item.durationLabel,
+                            style: const TextStyle(
+                              color: FumicTheme.muted,
+                              fontSize: 12,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          item.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFFC7CDD7),
-                            fontSize: 18,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.durationLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: FumicTheme.muted,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
                       ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -532,74 +718,102 @@ class _MediaTile extends StatelessWidget {
 }
 
 class _EmptyLibrary extends StatelessWidget {
-  const _EmptyLibrary({required this.hasFolders, required this.onPickFolder});
-
-  final bool hasFolders;
-  final VoidCallback onPickFolder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.folder_open_rounded,
-            size: 70,
-            color: Color(0xFF677186),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            hasFolders
-                ? 'No media found in this tab.'
-                : 'Choose a media folder.',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            hasFolders
-                ? 'Supported files include MP3, FLAC, M4A, OGG, OPUS, WAV, MP4, MKV, MOV, and WEBM.'
-                : 'Fumic will recursively scan audio and video files.',
-            style: const TextStyle(color: FumicTheme.muted, fontSize: 16),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: onPickFolder,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add folder'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LibraryStatus extends StatelessWidget {
-  const _LibraryStatus({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+  const _EmptyLibrary({
+    required this.hasFolders,
+    required this.searching,
+    required this.scanning,
+    required this.tab,
+    required this.otherTabCount,
+    required this.onClearSearch,
+    required this.onSwitchTab,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final bool hasFolders;
+  final bool searching;
+  final bool scanning;
+  final MediaKind tab;
+  final int otherTabCount;
+  final VoidCallback onClearSearch;
+  final VoidCallback onSwitchTab;
 
   @override
   Widget build(BuildContext context) {
+    final title = scanning
+        ? 'Scanning your library'
+        : searching
+        ? 'No matching media'
+        : !hasFolders
+        ? 'Your library starts here'
+        : tab == MediaKind.audio
+        ? 'No audio here yet'
+        : 'No videos here yet';
+    final subtitle = scanning
+        ? 'Your files stay on this device.'
+        : searching
+        ? 'Try another title or artist, or clear your search to see everything in this tab.'
+        : !hasFolders
+        ? 'Add a folder with music or videos. Fumic finds supported files in its subfolders, too.'
+        : 'Add another folder to find more media. You can manage your folders in Settings.';
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 70, color: FumicTheme.accent),
-          const SizedBox(height: 18),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: FumicTheme.accent.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: FumicTheme.accent.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Icon(
+                  searching
+                      ? Icons.search_off_rounded
+                      : Icons.library_music_outlined,
+                  size: 42,
+                  color: FumicTheme.accent,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: FumicTheme.muted, height: 1.6),
+              ),
+              if (!scanning) ...[
+                const SizedBox(height: 22),
+                if (searching)
+                  FilledButton.icon(
+                    onPressed: onClearSearch,
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Clear search'),
+                  )
+                else if (otherTabCount > 0)
+                  OutlinedButton.icon(
+                    onPressed: onSwitchTab,
+                    icon: const Icon(Icons.swap_horiz_rounded),
+                    label: Text(
+                      tab == MediaKind.audio ? 'Browse videos' : 'Browse audio',
+                    ),
+                  ),
+              ],
+            ],
           ),
-          const SizedBox(height: 10),
-          Text(subtitle, style: const TextStyle(color: FumicTheme.muted)),
-        ],
+        ),
       ),
     );
   }

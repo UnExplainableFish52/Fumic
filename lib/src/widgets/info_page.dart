@@ -92,13 +92,13 @@ class _InfoHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'FUMIC',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
+                'Fumic',
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w600),
               ),
               SizedBox(height: 8),
               Text(
-                'The Magical Media Player (FOSS)',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                'Fumic - Magical Media Player',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
               ),
               SizedBox(height: 14),
               Text(
@@ -193,7 +193,7 @@ class _ShortcutReferenceState extends State<_ShortcutReference> {
             children: [
               const Text(
                 'Keyboard Shortcuts',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
               ),
               SoftBadge(text: '${entries.length} shown'),
               SizedBox(
@@ -268,7 +268,7 @@ class _ShortcutGroup extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
           LayoutBuilder(
@@ -435,7 +435,7 @@ class _InfoCard extends StatelessWidget {
               style: const TextStyle(
                 color: Color(0xFFC7CDD7),
                 fontSize: 16,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -557,7 +557,9 @@ class _InfoLink extends StatelessWidget {
     await Clipboard.setData(ClipboardData(text: value));
     try {
       if (Platform.isWindows) {
-        await Process.start('cmd', ['/c', 'start', '', value]);
+        await const MethodChannel(
+          'fumic/window',
+        ).invokeMethod<void>('openUrl', value);
       } else if (Platform.isMacOS) {
         await Process.start('open', [value]);
       } else if (Platform.isLinux) {
@@ -595,7 +597,7 @@ class _ShortcutCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Color(0xFF9CB2FF),
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -629,7 +631,7 @@ class _ProjectPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
-        color: const Color(0xCC1B232E),
+        color: FumicTheme.cardFill(context),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         boxShadow: [
@@ -645,7 +647,7 @@ class _ProjectPill extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: FumicTheme.accent),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -665,21 +667,9 @@ class _Surface extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: padding,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF242C38), Color(0xFF1B2430)],
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
+      decoration: FumicTheme.glassDecoration(
+        context,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: child,
     );

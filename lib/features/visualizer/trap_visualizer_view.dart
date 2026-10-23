@@ -43,6 +43,12 @@ class _TrapVisualizerViewState extends State<TrapVisualizerView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _controller.update(active: TickerMode.valuesOf(context).enabled);
+  }
+
+  @override
   void didUpdateWidget(covariant TrapVisualizerView oldWidget) {
     super.didUpdateWidget(oldWidget);
     _controller.update(
@@ -61,6 +67,7 @@ class _TrapVisualizerViewState extends State<TrapVisualizerView>
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.settings.enabled) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth.isFinite
@@ -86,20 +93,21 @@ class _TrapVisualizerViewState extends State<TrapVisualizerView>
                     colors: _safeColors(widget.item.colors),
                   ),
                 ),
-                AnimatedBuilder(
-                  animation: _controller,
-                  child: _CenterDisc(
-                    item: widget.item,
-                    settings: widget.settings,
-                    diameter: discDiameter,
+                if (widget.settings.showArtwork)
+                  AnimatedBuilder(
+                    animation: _controller,
+                    child: _CenterDisc(
+                      item: widget.item,
+                      settings: widget.settings,
+                      diameter: discDiameter,
+                    ),
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _controller.logoScale,
+                        child: child,
+                      );
+                    },
                   ),
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _controller.logoScale,
-                      child: child,
-                    );
-                  },
-                ),
               ],
             ),
           ),
@@ -234,6 +242,7 @@ class _LogoFallback extends StatelessWidget {
           heightFactor: 0.54,
           child: Image.asset(
             'icons/fumic_logo_trans.png',
+            cacheWidth: 256,
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
           ),

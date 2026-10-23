@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/scheduler.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../models/media_item.dart';
+import '../models/media_kind.dart';
 import '../models/playback_speed.dart';
 import 'playback_service.dart';
 
 class MediaKitPlaybackService extends PlaybackService {
   MediaKitPlaybackService() {
     _player = Player();
-    _videoController = VideoController(_player);
     _subscriptions.addAll([
       _player.stream.playing.listen(
         (value) => _setSnapshot(_snapshot.copyWith(playing: value)),
@@ -39,11 +40,14 @@ class MediaKitPlaybackService extends PlaybackService {
     ]);
     unawaited(_player.setVolume(_snapshot.volume * 100));
     unawaited(_applyPlaylistMode());
+    // Fumic shuffles its own queue; keep native shuffle disabled to avoid
+    // applying a second, independent playback order.
     unawaited(_player.setShuffle(false));
   }
 
   late final Player _player;
-  late final VideoController _videoController;
+  // Audio playback must not allocate a native video output / GPU texture.
+  VideoController? _videoController;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   final math.Random _random = math.Random();
   List<MediaItem> _queue = const [];
@@ -55,7 +59,7 @@ class MediaKitPlaybackService extends PlaybackService {
   PlaybackSnapshot get snapshot => _snapshot;
 
   @override
-  VideoController get videoController => _videoController;
+  VideoController? get videoController => _videoController;
 
   @override
   Future<void> openQueue(
@@ -195,13 +199,19 @@ class MediaKitPlaybackService extends PlaybackService {
     await _advancePlaybackOrder(1);
   }
 
-  Future<void> _openQueueIndex(int queueIndex, {required bool play}) {
+  Future<void> _openQueueIndex(int queueIndex, {required bool play}) async {
     if (_queue.isEmpty) {
-      return Future<void>.value();
+      return;
     }
     final safeIndex = queueIndex.clamp(0, _queue.length - 1).toInt();
     _index = safeIndex;
     final item = _queue[_index];
+    if (item.kind == MediaKind.video && _videoController == null) {
+      _videoController = VideoController(_player);
+      // VideoController initializes after a frame. The player waits for that
+      // initialization, including when the desktop window has lost focus.
+      SchedulerBinding.instance.scheduleFrame();
+    }
     _setSnapshot(
       _snapshot.copyWith(
         currentItem: item,
@@ -212,7 +222,11 @@ class MediaKitPlaybackService extends PlaybackService {
         clearError: true,
       ),
     );
-    return _player.open(Media(Uri.file(item.path).toString()), play: play);
+    // Embedded album artwork can also be exposed as a video track by mpv.
+    await _player.setVideoTrack(
+      item.kind == MediaKind.video ? VideoTrack.auto() : VideoTrack.no(),
+    );
+    await _player.open(Media(Uri.file(item.path).toString()), play: play);
   }
 
   Future<void> _applyPlaylistMode() {

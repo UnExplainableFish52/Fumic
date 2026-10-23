@@ -17,10 +17,15 @@ class PlaylistsPage extends StatefulWidget {
     required this.activePlaylistId,
     required this.currentItemPath,
     required this.playbackPlaying,
+    required this.createShortcutRequest,
+    required this.renameShortcutRequest,
+    required this.deleteShortcutRequest,
     required this.libraryItems,
     required this.addCandidate,
     required this.scanning,
     required this.onPlaylistSelected,
+    required this.onEditorClosed,
+    required this.onEditorFocusChanged,
     required this.onCreatePlaylist,
     required this.onRenamePlaylist,
     required this.onDeletePlaylist,
@@ -37,10 +42,15 @@ class PlaylistsPage extends StatefulWidget {
   final String? activePlaylistId;
   final String? currentItemPath;
   final bool playbackPlaying;
+  final int createShortcutRequest;
+  final int renameShortcutRequest;
+  final int deleteShortcutRequest;
   final List<MediaItem> libraryItems;
   final MediaItem? addCandidate;
   final bool scanning;
   final ValueChanged<String> onPlaylistSelected;
+  final VoidCallback onEditorClosed;
+  final ValueChanged<bool> onEditorFocusChanged;
   final Future<void> Function(String name) onCreatePlaylist;
   final Future<void> Function(String id, String name) onRenamePlaylist;
   final Future<void> Function(String id) onDeletePlaylist;
@@ -59,6 +69,7 @@ class PlaylistsPage extends StatefulWidget {
 class _PlaylistsPageState extends State<PlaylistsPage> {
   late final TextEditingController _createController;
   late final TextEditingController _renameController;
+  late final FocusNode _pageFocusNode;
   late final FocusNode _createFocusNode;
   late final FocusNode _renameFocusNode;
 
@@ -74,6 +85,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
     super.initState();
     _createController = TextEditingController();
     _renameController = TextEditingController();
+    _pageFocusNode = FocusNode(debugLabel: 'Playlists page');
     _createFocusNode = FocusNode(
       debugLabel: 'Create playlist name',
       onKeyEvent: _handleCreateKeyEvent,
@@ -82,6 +94,9 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       debugLabel: 'Rename playlist name',
       onKeyEvent: _handleRenameKeyEvent,
     );
+    _createFocusNode.addListener(_notifyEditorFocusChanged);
+    _renameFocusNode.addListener(_notifyEditorFocusChanged);
+    _focusPageAfterFrame();
   }
 
   @override
@@ -97,12 +112,24 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       _deleteConfirmPlaylistId = null;
       _deleteBusy = false;
     }
+    if (widget.createShortcutRequest != oldWidget.createShortcutRequest) {
+      _startCreate();
+    }
+    if (widget.renameShortcutRequest != oldWidget.renameShortcutRequest) {
+      _startRenameForSelected();
+    }
+    if (widget.deleteShortcutRequest != oldWidget.deleteShortcutRequest) {
+      _startDeleteForSelected();
+    }
   }
 
   @override
   void dispose() {
+    _createFocusNode.removeListener(_notifyEditorFocusChanged);
+    _renameFocusNode.removeListener(_notifyEditorFocusChanged);
     _createController.dispose();
     _renameController.dispose();
+    _pageFocusNode.dispose();
     _createFocusNode.dispose();
     _renameFocusNode.dispose();
     super.dispose();
@@ -123,84 +150,91 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
     final selectedActive = selected.id == widget.activePlaylistId;
     final resolvedCount = _resolvedCount(selected, libraryByPath);
 
-    return ClipRect(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 900;
-          final rail = _PlaylistRail(
-            playlists: safePlaylists,
-            selectedPlaylistId: selected.id,
-            activePlaylistId: widget.activePlaylistId,
-            creating: _creating,
-            createBusy: _createBusy,
-            createController: _createController,
-            createFocusNode: _createFocusNode,
-            onSelected: _selectPlaylist,
-            onCreateStart: _startCreate,
-            onCreateSubmit: _submitCreate,
-            onCreateCancel: _cancelCreate,
-          );
-          final detail = _PlaylistDetail(
-            playlist: selected,
-            libraryByPath: libraryByPath,
-            addCandidate: widget.addCandidate,
-            scanning: widget.scanning,
-            active: selectedActive,
-            currentItemPath: widget.currentItemPath,
-            playbackPlaying: widget.playbackPlaying,
-            renaming: _renamingPlaylistId == selected.id,
-            renameBusy: _renameBusy,
-            renameController: _renameController,
-            renameFocusNode: _renameFocusNode,
-            deleteConfirming: _deleteConfirmPlaylistId == selected.id,
-            deleteBusy: _deleteBusy,
-            onCreate: _startCreate,
-            onRename: selected.isProtected
-                ? null
-                : () => _startRename(selected),
-            onRenameSubmit: () => _submitRename(selected),
-            onRenameCancel: _cancelRename,
-            onDelete: selected.isProtected
-                ? null
-                : () => _startDelete(selected),
-            onDeleteConfirm: () => _confirmDelete(selected),
-            onDeleteCancel: _cancelDelete,
-            onPlay: selectedActive
-                ? widget.onToggleActivePlaylist
-                : resolvedCount == 0
-                ? null
-                : () => widget.onPlayPlaylist(selected.id),
-            onShuffle: resolvedCount < 2
-                ? null
-                : () => widget.onShufflePlaylist(selected.id),
-            onAddItem: (item) => widget.onAddItem(selected.id, item),
-            onRemoveEntry: (path) => widget.onRemoveEntry(selected.id, path),
-            onReorderEntry: (oldIndex, newIndex) =>
-                widget.onReorderEntry(selected.id, oldIndex, newIndex),
-          );
+    return Focus(
+      focusNode: _pageFocusNode,
+      onKeyEvent: _handlePageKeyEvent,
+      child: ClipRect(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 900;
+            final rail = _PlaylistRail(
+              playlists: safePlaylists,
+              selectedPlaylistId: selected.id,
+              activePlaylistId: widget.activePlaylistId,
+              creating: _creating,
+              createBusy: _createBusy,
+              createController: _createController,
+              createFocusNode: _createFocusNode,
+              onSelected: _selectPlaylist,
+              onCreateStart: _startCreate,
+              onCreateSubmit: _submitCreate,
+              onCreateCancel: _cancelCreate,
+            );
+            final detail = _PlaylistDetail(
+              playlist: selected,
+              libraryByPath: libraryByPath,
+              addCandidate: widget.addCandidate,
+              scanning: widget.scanning,
+              active: selectedActive,
+              currentItemPath: widget.currentItemPath,
+              playbackPlaying: widget.playbackPlaying,
+              renaming: _renamingPlaylistId == selected.id,
+              renameBusy: _renameBusy,
+              renameController: _renameController,
+              renameFocusNode: _renameFocusNode,
+              deleteConfirming: _deleteConfirmPlaylistId == selected.id,
+              deleteBusy: _deleteBusy,
+              onCreate: _startCreate,
+              onRename: selected.isProtected
+                  ? null
+                  : () => _startRename(selected),
+              onRenameSubmit: () => _submitRename(selected),
+              onRenameCancel: _cancelRename,
+              onDelete: selected.isProtected
+                  ? null
+                  : () => _startDelete(selected),
+              onDeleteConfirm: () => _confirmDelete(selected),
+              onDeleteCancel: _cancelDelete,
+              onPlay: selectedActive
+                  ? widget.onToggleActivePlaylist
+                  : resolvedCount == 0
+                  ? null
+                  : () => widget.onPlayPlaylist(selected.id),
+              onShuffle: resolvedCount < 2
+                  ? null
+                  : () => widget.onShufflePlaylist(selected.id),
+              onAddItem: (item) => widget.onAddItem(selected.id, item),
+              onRemoveEntry: (path) => widget.onRemoveEntry(selected.id, path),
+              onReorderEntry: (oldIndex, newIndex) =>
+                  widget.onReorderEntry(selected.id, oldIndex, newIndex),
+            );
 
-          if (compact) {
-            final railHeight = constraints.maxHeight < 620 ? 178.0 : 220.0;
-            return Column(
+            if (compact) {
+              final railHeight = constraints.maxHeight < 620 ? 178.0 : 220.0;
+              return Column(
+                children: [
+                  SizedBox(height: railHeight, child: rail),
+                  Divider(
+                    height: 1,
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                  Expanded(child: detail),
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(height: railHeight, child: rail),
-                Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                SizedBox(width: 292, child: rail),
+                VerticalDivider(
+                  width: 1,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
                 Expanded(child: detail),
               ],
             );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(width: 292, child: rail),
-              VerticalDivider(
-                width: 1,
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-              Expanded(child: detail),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -211,11 +245,93 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
         .length;
   }
 
+  KeyEventResult _handlePageKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (_createFocusNode.hasFocus || _renameFocusNode.hasFocus) {
+      return KeyEventResult.ignored;
+    }
+
+    final key = event.logicalKey;
+    final controlPressed = HardwareKeyboard.instance.isControlPressed;
+    if (controlPressed && key == LogicalKeyboardKey.keyN) {
+      if (event is KeyDownEvent) {
+        _startCreate();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.f2) {
+      if (event is KeyDownEvent) {
+        _startRenameForSelected();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.delete) {
+      if (event is KeyDownEvent) {
+        _startDeleteForSelected();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (event is KeyDownEvent) {
+        _activateSelectedPlaylist();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _selectAdjacentPlaylist(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _selectAdjacentPlaylist(-1);
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  void _activateSelectedPlaylist() {
+    final playlist = _selectedPlaylist();
+    if (playlist.id == widget.activePlaylistId) {
+      widget.onToggleActivePlaylist();
+      _focusPageAfterFrame();
+      return;
+    }
+    final libraryByPath = {
+      for (final item in widget.libraryItems) _pathKey(item.path): item,
+    };
+    if (_resolvedCount(playlist, libraryByPath) == 0) {
+      return;
+    }
+    unawaited(widget.onPlayPlaylist(playlist.id));
+    _focusPageAfterFrame();
+  }
+
+  void _selectAdjacentPlaylist(int delta) {
+    final safePlaylists = widget.playlists.isEmpty
+        ? [Playlist.favourites()]
+        : widget.playlists;
+    final currentIndex = safePlaylists.indexWhere(
+      (playlist) => playlist.id == widget.selectedPlaylistId,
+    );
+    final safeIndex = currentIndex < 0 ? 0 : currentIndex;
+    final nextIndex = (safeIndex + delta).clamp(0, safePlaylists.length - 1);
+    final nextId = safePlaylists[nextIndex].id;
+    if (nextId == widget.selectedPlaylistId) {
+      return;
+    }
+    widget.onPlaylistSelected(nextId);
+    _focusPageAfterFrame();
+  }
+
   void _selectPlaylist(String id) {
     _cancelCreate();
     _cancelRename();
     _cancelDelete();
     widget.onPlaylistSelected(id);
+    _focusPageAfterFrame();
   }
 
   void _startCreate() {
@@ -227,6 +343,22 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       _createController.clear();
     });
     _focusAfterFrame(_createFocusNode);
+  }
+
+  void _startRenameForSelected() {
+    final playlist = _selectedPlaylist();
+    if (playlist.isProtected) {
+      return;
+    }
+    _startRename(playlist);
+  }
+
+  void _startDeleteForSelected() {
+    final playlist = _selectedPlaylist();
+    if (playlist.isProtected) {
+      return;
+    }
+    _startDelete(playlist);
   }
 
   Future<void> _submitCreate() async {
@@ -248,6 +380,11 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
         _createController.clear();
       }
     });
+    if (saved) {
+      widget.onEditorFocusChanged(false);
+      widget.onEditorClosed();
+      _focusPageAfterFrame();
+    }
   }
 
   void _cancelCreate() {
@@ -259,6 +396,9 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       _createBusy = false;
       _createController.clear();
     });
+    widget.onEditorFocusChanged(false);
+    widget.onEditorClosed();
+    _focusPageAfterFrame();
   }
 
   void _startRename(Playlist playlist) {
@@ -295,6 +435,11 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
         _renameController.clear();
       }
     });
+    if (saved) {
+      widget.onEditorFocusChanged(false);
+      widget.onEditorClosed();
+      _focusPageAfterFrame();
+    }
   }
 
   void _cancelRename() {
@@ -306,6 +451,9 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       _renameBusy = false;
       _renameController.clear();
     });
+    widget.onEditorFocusChanged(false);
+    widget.onEditorClosed();
+    _focusPageAfterFrame();
   }
 
   void _startDelete(Playlist playlist) {
@@ -315,6 +463,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       _renamingPlaylistId = null;
       _creating = false;
     });
+    _focusPageAfterFrame();
   }
 
   Future<void> _confirmDelete(Playlist playlist) async {
@@ -335,6 +484,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
         _deleteConfirmPlaylistId = null;
       }
     });
+    _focusPageAfterFrame();
   }
 
   void _cancelDelete() {
@@ -345,6 +495,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       _deleteConfirmPlaylistId = null;
       _deleteBusy = false;
     });
+    _focusPageAfterFrame();
   }
 
   KeyEventResult _handleCreateKeyEvent(FocusNode node, KeyEvent event) {
@@ -353,6 +504,11 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
     }
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _cancelCreate();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      unawaited(_submitCreate());
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -366,6 +522,12 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       _cancelRename();
       return KeyEventResult.handled;
     }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final playlist = _selectedPlaylist();
+      unawaited(_submitRename(playlist));
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
@@ -375,6 +537,30 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
         node.requestFocus();
       }
     });
+  }
+
+  void _focusPageAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _pageFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _notifyEditorFocusChanged() {
+    widget.onEditorFocusChanged(
+      _createFocusNode.hasFocus || _renameFocusNode.hasFocus,
+    );
+  }
+
+  Playlist _selectedPlaylist() {
+    final safePlaylists = widget.playlists.isEmpty
+        ? [Playlist.favourites()]
+        : widget.playlists;
+    return safePlaylists.firstWhere(
+      (playlist) => playlist.id == widget.selectedPlaylistId,
+      orElse: () => safePlaylists.first,
+    );
   }
 
   Future<bool> _runPlaylistMutation(
@@ -435,7 +621,7 @@ class _PlaylistRail extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'Playlists',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                 ),
                 IconButton.filledTonal(
@@ -508,17 +694,13 @@ class _PlaylistRailTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFF123842)
-                : active
-                ? const Color(0xFF102D35)
-                : Colors.white.withValues(alpha: 0.045),
-            borderRadius: BorderRadius.circular(8),
+            color: FumicTheme.cardFill(context),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected || active
                   ? FumicTheme.accent.withValues(alpha: selected ? 0.72 : 0.42)
@@ -544,7 +726,7 @@ class _PlaylistRailTile extends StatelessWidget {
                       playlist.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 3),
                     Row(
@@ -853,7 +1035,7 @@ class _PlaylistToolbar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -967,7 +1149,7 @@ class _InlinePlaylistNameEditor extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: const Color(0xFF0D141E),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Row(
@@ -1038,8 +1220,8 @@ class _PlaylistTrackRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: missing ? const Color(0xFF1B222C) : const Color(0xFF1A2230),
-        borderRadius: BorderRadius.circular(8),
+        color: FumicTheme.cardFill(context),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: nowPlaying
               ? FumicTheme.accent.withValues(alpha: 0.55)
@@ -1080,7 +1262,7 @@ class _PlaylistTrackRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1123,7 +1305,7 @@ class _MissingArtwork extends StatelessWidget {
       height: 56,
       decoration: BoxDecoration(
         color: const Color(0xFF202A35),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: const Icon(Icons.link_off_rounded, color: FumicTheme.muted),
@@ -1160,7 +1342,7 @@ class _PlaylistEmptyState extends StatelessWidget {
             const SizedBox(height: 16),
             const Text(
               'No tracks yet',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -1212,7 +1394,7 @@ class _MiniStatusBadge extends StatelessWidget {
         style: const TextStyle(
           color: FumicTheme.accent,
           fontSize: 10,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
