@@ -83,9 +83,8 @@ wallpaper dimming independently.
 
 ## Build From Source
 
-For the current interface review and remaining release work, see the
-[Store readiness review](docs/STORE_READINESS_REVIEW.md) and
-[Microsoft Store release guide](docs/MICROSOFT_STORE_RELEASE_GUIDE.md).
+See the [release notes](docs/RELEASE_NOTES_2.6.3.md) for the current changes and
+the [public release guide](docs/PUBLIC_RELEASE_GUIDE.md) for Windows packaging.
 
 ### Requirements
 

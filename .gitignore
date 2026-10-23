@@ -54,9 +54,25 @@ Thumbs.db
 !.env.example
 *.pfx
 *.p12
+*.pem
+*.cer
+*.crt
 *.key
 *.keystore
 *.jks
+
+# Store upload artifacts and internal release documents stay local
+*.msix
+*.msixbundle
+*.msixupload
+*.appx
+*.appxbundle
+*.appxupload
+/docs/MICROSOFT_STORE_RELEASE_GUIDE.md
+/docs/STORE_READINESS_REVIEW.md
+/docs/STORE_LISTING_DRAFT.md
+/docs/PRIVACY_POLICY_DRAFT.md
+/docs/RELEASE_VALIDATION_*.md
 
 # Symbolication related
 app.*.symbols
