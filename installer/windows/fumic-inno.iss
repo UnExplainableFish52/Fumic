@@ -1,10 +1,10 @@
-; Inno Setup script for Fumic - Magical Media Player 2.6.3.
+; Inno Setup script for Fumic - Magical Media Player 2.6.4.
 ; Build the Flutter release before compiling this installer:
-; flutter build windows --release --build-name=2.6.3 --build-number=0
+; flutter build windows --release --build-name=2.6.4 --build-number=0
 
 #define MyAppName "Fumic"
 #define MyAppFullName "Fumic - Magical Media Player"
-#define MyAppVersion "2.6.3"
+#define MyAppVersion "2.6.4"
 #define MyAppPublisher "Saksham Sharma"
 #define MyAppExeName "fumic.exe"
 
@@ -27,7 +27,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=Fumic-Setup-2.6.3-windows-x64
+OutputBaseFilename=Fumic-Setup-2.6.4-windows-x64
 SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 UninstallDisplayName={#MyAppFullName}
 UninstallDisplayIcon={app}\{#MyAppExeName}

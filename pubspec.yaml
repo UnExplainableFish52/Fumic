@@ -16,16 +16,16 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.6.3+263
+version: 2.6.4+264
 
 # Partner Center identity supplied by the publisher. Keep the Store revision at
-# zero; do not infer it from the Flutter build suffix (+263).
+# zero; do not infer it from the Flutter build suffix (+264).
 msix_config:
   display_name: Fumic
   publisher_display_name: TheIdealDev52
   identity_name: TheIdealDev52.Fumic
   publisher: CN=53B47373-7933-42A9-AF08-A830D467B5E3
-  msix_version: 2.6.3.0
+  msix_version: 2.6.4.0
   architecture: x64
   languages: en-us
   logo_path: icons/icon.png
@@ -34,9 +34,9 @@ msix_config:
   store: true
   sign_msix: false
   install_certificate: false
-  windows_build_args: --build-name=2.6.3 --build-number=0
+  windows_build_args: --build-name=2.6.4 --build-number=0
   output_path: dist/store
-  output_name: Fumic-2.6.3.0-windows-x64
+  output_name: Fumic-2.6.4.0-windows-x64
 
 environment:
   sdk: ^3.9.2

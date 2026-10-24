@@ -143,6 +143,7 @@ class _ProjectStrip extends StatelessWidget {
         _ProjectPill(icon: Icons.lock_rounded, label: 'Offline-first'),
         _ProjectPill(icon: Icons.keyboard_alt_rounded, label: 'Keyboard-first'),
         _ProjectPill(icon: Icons.favorite_rounded, label: 'Community-focused'),
+        _ProjectPill(icon: Icons.info_outline_rounded, label: 'Version 2.6.4'),
       ],
     );
   }

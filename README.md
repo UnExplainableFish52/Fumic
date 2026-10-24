@@ -10,6 +10,9 @@ Fumic is made for people who want a fast local music and video player without ac
 
 ## Download
 
+**Current stable release: [Fumic 2.6.4](https://github.com/UnExplainableFish52/Fumic/releases/tag/v2.6.4).**
+The Info page displays the app version after the Community-focused badge.
+
 Download the latest Flutter-based Windows release from GitHub Releases:
 
 https://github.com/UnExplainableFish52/Fumic/releases
@@ -83,7 +86,7 @@ wallpaper dimming independently.
 
 ## Build From Source
 
-See the [release notes](docs/RELEASE_NOTES_2.6.3.md) for the current changes and
+See the [release notes](docs/RELEASE_NOTES_2.6.4.md) for the current changes and
 the [public release guide](docs/PUBLIC_RELEASE_GUIDE.md) for Windows packaging.
 
 ### Requirements
@@ -102,7 +105,7 @@ flutter run -d windows
 ### Release Build
 
 ```powershell
-flutter build windows --release --build-name=2.6.3 --build-number=0
+flutter build windows --release --build-name=2.6.4 --build-number=0
 ```
 
 The Windows release output is generated in:

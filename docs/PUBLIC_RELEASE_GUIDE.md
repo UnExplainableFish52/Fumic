@@ -1,6 +1,6 @@
 # Fumic - Magical Media Player Public Release Guide
 
-This guide is for publishing Fumic - Magical Media Player `2.6.3` as a public Windows release on GitHub and preparing for Microsoft Store distribution later.
+This guide is for publishing Fumic - Magical Media Player `2.6.4` as a stable Windows release on GitHub and preparing the Microsoft Store package separately.
 
 ## Release Strategy
 
@@ -9,13 +9,13 @@ Publish two downloadable files:
 1. A normal Windows setup installer:
 
 ```text
-Fumic-Setup-2.6.3-windows-x64.exe
+Fumic-Setup-2.6.4-windows-x64.exe
 ```
 
 2. An optional portable ZIP for technical users:
 
 ```text
-Fumic-2.6.3-windows-x64-portable.zip
+Fumic-2.6.4-windows-x64-portable.zip
 ```
 
 Do not upload only this file:
@@ -32,8 +32,8 @@ Upload these to the GitHub release:
 
 | File | Purpose |
 | --- | --- |
-| `Fumic-Setup-2.6.3-windows-x64.exe` | Main download for normal users. |
-| `Fumic-2.6.3-windows-x64-portable.zip` | Optional portable build for users who do not want an installer. |
+| `Fumic-Setup-2.6.4-windows-x64.exe` | Main download for normal users. |
+| `Fumic-2.6.4-windows-x64-portable.zip` | Optional portable build for users who do not want an installer. |
 | `SHA256SUMS.txt` | Lets users verify downloads. |
 
 GitHub automatically adds source code ZIP/TAR archives for the tagged commit, so you do not need to upload source manually unless you want a custom source package.
@@ -47,7 +47,7 @@ flutter clean
 flutter pub get
 flutter test
 flutter analyze
-flutter build windows --release --build-name=2.6.3 --build-number=0
+flutter build windows --release --build-name=2.6.4 --build-number=0
 ```
 
 The Windows build output should be here:
@@ -71,7 +71,7 @@ Create a `dist` folder and ZIP the entire release folder contents:
 
 ```powershell
 New-Item -ItemType Directory -Force dist
-Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath dist\Fumic-2.6.3-windows-x64-portable.zip -Force
+Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath dist\Fumic-2.6.4-windows-x64-portable.zip -Force
 ```
 
 Users install the portable version by extracting the ZIP and running:
@@ -97,7 +97,7 @@ Install Inno Setup 6, then compile the script:
 Expected output:
 
 ```text
-dist\Fumic-Setup-2.6.3-windows-x64.exe
+dist\Fumic-Setup-2.6.4-windows-x64.exe
 ```
 
 This setup file should be the main GitHub release download.
@@ -138,35 +138,48 @@ For the smoothest public experience, the best long-term path is:
 6. Create a Git tag:
 
 ```powershell
-git tag v2.6.3
-git push origin v2.6.3
+git tag v2.6.4
+git push origin v2.6.4
 ```
 
 7. On GitHub, open the repository and go to Releases.
 8. Click "Draft a new release".
-9. Choose tag `v2.6.3`.
+9. Choose tag `v2.6.4`.
 10. Title it:
 
 ```text
-Fumic - Magical Media Player 2.6.3 - Flutter release
+Fumic 2.6.4 — Stable
 ```
 
 11. Paste the release notes from:
 
 ```text
-docs\RELEASE_NOTES_2.6.3.md
+docs\RELEASE_NOTES_2.6.4.md
 ```
 
 12. Upload the installer, portable ZIP, and checksum file.
-13. Publish the release.
+13. Publish the release as the latest stable release, with the prerelease option disabled.
+
+## Prepare The Microsoft Store Package
+
+After creating the portable ZIP and installer, generate and verify the Store MSIX:
+
+```powershell
+dart run msix:create
+./installer/windows/verify-store-package.ps1
+```
+
+Expected output: `dist/store/Fumic-2.6.4.0-windows-x64.msix`.
+The package uses the existing Store identity and is unsigned for Microsoft Store
+signing. Keep it separate from the installer and portable downloads on GitHub.
 
 ## Generate Checksums
 
 After creating release files:
 
 ```powershell
-Get-FileHash dist\Fumic-Setup-2.6.3-windows-x64.exe -Algorithm SHA256
-Get-FileHash dist\Fumic-2.6.3-windows-x64-portable.zip -Algorithm SHA256
+Get-FileHash dist\Fumic-Setup-2.6.4-windows-x64.exe -Algorithm SHA256
+Get-FileHash dist\Fumic-2.6.4-windows-x64-portable.zip -Algorithm SHA256
 ```
 
 Put the output into:
@@ -178,8 +191,8 @@ SHA256SUMS.txt
 Recommended format:
 
 ```text
-<hash>  Fumic-Setup-2.6.3-windows-x64.exe
-<hash>  Fumic-2.6.3-windows-x64-portable.zip
+<hash>  Fumic-Setup-2.6.4-windows-x64.exe
+<hash>  Fumic-2.6.4-windows-x64-portable.zip
 ```
 
 ## Microsoft Store Plan

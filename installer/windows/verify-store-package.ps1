@@ -1,6 +1,6 @@
 param(
     [string]$PackagePath,
-    [string]$ExpectedVersion = '2.6.3.0'
+    [string]$ExpectedVersion = '2.6.4.0'
 )
 
 $ErrorActionPreference = 'Stop'
