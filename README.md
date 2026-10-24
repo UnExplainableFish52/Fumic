@@ -1,8 +1,6 @@
 # Fumic - Magical Media Player
 
-**Fumic - Magical Media Player is an open-source, offline-first, keyboard-driven media player for Windows, now built with Flutter.**
-
-Fumic is made for people who want a fast local music and video player without accounts, ads, telemetry, streaming lock-in, or unnecessary background services. The current actively maintained Fumic media player is the Flutter version, focused on responsive Windows playback, keyboard-first navigation, playlists, local artwork, and a clean desktop interface.
+Fumic is a free, open-source music and video player for Windows, built with Flutter and Dart. It plays the files on your computer, with keyboard shortcuts, playlists, and a customizable visualizer. No account or internet connection is needed for playback.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://github.com/UnExplainableFish52/Fumic)
@@ -10,37 +8,48 @@ Fumic is made for people who want a fast local music and video player without ac
 
 ## Download
 
-**Current stable release: [Fumic 2.6.4](https://github.com/UnExplainableFish52/Fumic/releases/tag/v2.6.4).**
-The Info page displays the app version after the Community-focused badge.
+Get [Fumic 2.6.4 for Windows x64](https://github.com/UnExplainableFish52/Fumic/releases/tag/v2.6.4), or browse [all releases](https://github.com/UnExplainableFish52/Fumic/releases).
 
-Download the latest Flutter-based Windows release from GitHub Releases:
+| Download | How to use it |
+| --- | --- |
+| `Fumic-Setup-2.6.4-windows-x64.exe` | Run the installer to install Fumic. |
+| `Fumic-2.6.4-windows-x64-portable.zip` | Extract the ZIP, then run `fumic.exe` from the extracted folder. Keep the other files alongside it. |
+| `SHA256SUMS.txt` | SHA-256 checksums for verifying the downloads. |
 
-https://github.com/UnExplainableFish52/Fumic/releases
-
-For normal users, use the Windows setup installer when it is available. The portable ZIP is useful if you prefer to extract the app manually and run `fumic.exe` directly from the extracted folder.
-
-## Electron Version Deprecated
-
-Note: Fumic was previously built with Electron, but the Electron version is now deprecated and no longer actively maintained. Current and future releases are Flutter-based. For the best performance, latest features, and actively maintained version, download the latest Flutter release from GitHub Releases.
-
-The Electron history is still part of the project, but it is no longer the recommended app for users. The Flutter media player is more efficient, more optimized for this project, and receives the newest Fumic features.
+See the [2.6.4 release notes](docs/RELEASE_NOTES_2.6.4.md) for the latest changes.
 
 ## Features
 
-- Open-source media player for Windows, licensed under GPLv3.
-- Offline-first media player behavior with local library scanning and no account requirement.
-- Keyboard-driven media player controls for playback, navigation, search, volume, playlists, and fullscreen workflows.
-- Flutter desktop interface designed for a responsive native-feeling Windows media player experience.
-- Local audio and video playback through `media_kit`.
-- Playlist support with a protected `Favourites` playlist and user-created playlists.
-- Custom visualizer background options and local app settings.
-- Artwork and metadata handling for common local media formats.
-- Shuffle, loop, seek, mute, playback speed, and queue navigation.
-- No ads, no telemetry, and no cloud sync requirement.
+- **Local music and video:** Play audio and video through `media_kit`, with metadata and embedded cover art where available.
+- **Folder-based library:** Scan your Music and Videos folders, add other folders, search your library, and refresh it when files change.
+- **Playlists:** Create and rename playlists, add tracks, and keep favourites in the built-in `Favourites` playlist.
+- **Playback controls:** Seek, shuffle the queue, loop the current track, adjust volume, and change playback speed from 0.5× to 3×.
+- **Keyboard shortcuts:** Control playback, browse the library, manage playlists, and switch views from the keyboard.
+- **Customizable appearance:** Choose a bundled wallpaper or import your own image, adjust background and card opacity, and show or hide center artwork.
+- **Visualizer and full player:** Adjust visualizer quality, particles, glow, and intensity. Let player controls hide automatically, hide them manually, or use a wallpaper-only view.
+- **Background playback:** Minimize Fumic while music keeps playing. Visualizer animation stops and playback-driven UI updates are reduced while the app is inactive or minimized.
+- **Local storage:** Settings, playlists, library paths, and artwork caches stay on your device. Fumic has no ads, analytics, telemetry, or cloud sync.
 
-## Keyboard Shortcuts
+## Getting started
 
-Fumic is designed around fast keyboard use. Common shortcuts include:
+1. Open Fumic. On first launch, it looks for media in your Windows Music and Videos folders.
+2. Use **Add folder** in the library or under **Settings > Library** to include other folders.
+3. Select a track or video and press `Ctrl + Enter` to play it. Use `Ctrl + K` to search and `Ctrl + R` to refresh the library.
+4. Press `F` or `E` to switch between the library and the full player. Use `F11` to toggle window fullscreen.
+
+### Media formats
+
+The library scanner recognizes these file extensions:
+
+| Audio | Video |
+| --- | --- |
+| AAC, AIF, AIFF, ALAC, FLAC, M4A, M4B, MP3, OGA, OGG, OPUS, WAV, WMA | AVI, M4V, MKV, MOV, MP4, WEBM, WMV |
+
+Playback depends on the codecs inside each file and support in the bundled playback engine.
+
+## Keyboard shortcuts
+
+These shortcuts work while Fumic has keyboard focus. Most playback shortcuts are disabled while typing in search or an editor.
 
 | Shortcut | Action |
 | --- | --- |
@@ -49,11 +58,15 @@ Fumic is designed around fast keyboard use. Common shortcuts include:
 | `Ctrl + Enter` | Play selected media |
 | `Ctrl + B` in library / `Ctrl + Shift + B` anywhere | Add selected or current media to a playlist |
 | `Ctrl + K` | Focus search |
+| `Ctrl + R` | Refresh the library |
+| `Ctrl + A` / `Ctrl + V` | Switch to the audio or video tab |
 | `Ctrl + H` | Go to Home |
 | `Ctrl + P` | Go to Playlists |
 | `Ctrl + S` | Go to Settings |
 | `Ctrl + I` | Go to Info |
-| `Left` / `Right` | Seek |
+| `Left` / `Right` | Seek back or forward 5 seconds |
+| `Shift + Left` / `Shift + Right` | Seek back or forward 10 seconds |
+| `0`–`9` | Jump to 0%–90% of the current track or video |
 | `Ctrl + Left` / `Ctrl + Right` | Previous or next track |
 | `Ctrl + Up` / `Ctrl + Down` | Volume up or down |
 | `Ctrl + M` | Mute or unmute |
@@ -61,39 +74,34 @@ Fumic is designed around fast keyboard use. Common shortcuts include:
 | `F2` in Playlists | Rename selected playlist |
 | `Delete` in Playlists | Confirm delete selected playlist |
 | `Enter` in Playlists | Play selected playlist |
-| `Up` / `Down` in Playlists | Move selected playlist |
+| `Up` / `Down` in library or Playlists | Select the previous or next item |
 | `Shift + S` | Toggle shuffle |
-| `Shift + L` | Toggle loop |
+| `Shift + L` | Toggle looping the current track |
+| `Shift + ,` / `Shift + .` | Decrease or increase playback speed |
 | `F` / `E` / `Ctrl + F` / `Ctrl + E` | Toggle the video or visualizer player and library |
 | `Esc` in player | Return to the library, keeping the window fullscreen |
 | `F11` / `Shift + F` | Toggle window fullscreen |
 | `I` | Minimize Fumic to the taskbar |
-| `B` / `Ctrl + B` in full player | Show or hide full-player controls; Home player stays visible |
+| `B` / `Ctrl + B` in full player | Show or hide full-player controls |
 | `Ctrl + W` | Close Fumic |
 
-Full-player controls hide after 5 seconds without activity. Moving the pointer,
-touching the player, or using a playback shortcut shows them again. In
-**Settings > Playback > Full player controls**, you can choose the delay, disable
-automatic hiding, or restore controls hidden with `B`. Manually hidden controls
-stay hidden until enabled with `B`, `Ctrl+B` in the full player, or in Settings. Shortcuts apply while Fumic
-has keyboard focus; use its taskbar icon or Alt+Tab to restore a minimized app.
+The **Keyboard Shortcuts** reference on the Info page (`Ctrl + I`) lists additional visualizer controls.
 
-For music with just the wallpaper, turn off **Settings > Visualizer > Enable
-visualizer effects**, open the full player with `F` or `E`, and hide the controls
-with `Ctrl+B`. Turning off **Appearance > Center artwork** also removes the
-center cover/logo while effects are enabled. Background opacity controls the
-wallpaper dimming independently.
+### Full player and wallpapers
 
-## Build From Source
+Full-player controls hide after 5 seconds of inactivity by default. Moving the pointer, touching the player, or using a playback shortcut shows them again. Change the delay or disable automatic hiding in **Settings > Playback > Full player controls**. Controls hidden manually with `B` stay hidden until you restore them with `B`, `Ctrl + B` in the full player, or the setting. The library's playback controls stay visible.
 
-See the [release notes](docs/RELEASE_NOTES_2.6.4.md) for the current changes and
-the [public release guide](docs/PUBLIC_RELEASE_GUIDE.md) for Windows packaging.
+For music with just a wallpaper, turn off **Settings > Visualizer > Enable visualizer effects**, open the full player with `F` or `E`, and hide the controls with `B`. To keep the effects but remove the center cover or logo, turn off **Settings > Appearance > Center artwork**. **Background opacity** adjusts wallpaper dimming independently.
+
+## Build from source
+
+The current release targets Windows x64.
 
 ### Requirements
 
-- Flutter with Windows desktop support enabled.
-- Visual Studio Build Tools with the Desktop development with C++ workload.
 - Windows 10 or Windows 11.
+- Flutter with Windows desktop support and Dart 3.9.2 or later, compatible with the SDK constraint in `pubspec.yaml`.
+- Visual Studio or Visual Studio Build Tools with the **Desktop development with C++** workload.
 
 ### Development
 
@@ -102,7 +110,7 @@ flutter pub get
 flutter run -d windows
 ```
 
-### Release Build
+### Release build
 
 ```powershell
 flutter build windows --release --build-name=2.6.4 --build-number=0
@@ -114,35 +122,29 @@ The Windows release output is generated in:
 build\windows\x64\runner\Release
 ```
 
-That folder must be distributed as a complete folder or packaged into an installer/portable ZIP. Do not upload only `fumic.exe`; the Flutter Windows app also needs its `data` folder and runtime DLLs.
+Distribute the complete release folder: `fumic.exe` needs the accompanying `data` folder and runtime DLLs. See the [public release guide](docs/PUBLIC_RELEASE_GUIDE.md) for installer, portable ZIP, and Microsoft Store packaging instructions.
 
-## Project Metadata
+## Privacy
 
-Suggested GitHub repository description:
-
-```text
-Fumic - Magical Media Player is an open-source, offline-first, keyboard-driven media player for Windows, now built with Flutter.
-```
-
-Natural search terms for this project include Fumic media player, Windows media player, Flutter media player, offline-first media player, keyboard-driven media player, and open-source media player.
+Fumic processes your library on your computer and does not automatically send your media, file paths, playlists, or usage activity to the developer. See the [privacy policy](docs/PRIVACY_POLICY.md) for details about local storage, external links, and support requests.
 
 ## Contributing
 
-Bug reports, feature suggestions, UI feedback, documentation improvements, and pull requests are welcome.
+Bug reports, feature suggestions, UI feedback, documentation improvements, and pull requests are welcome. Use [GitHub Issues](https://github.com/UnExplainableFish52/Fumic/issues) to report a problem or suggest a change. For bugs, include your Fumic version, Windows version, and steps to reproduce the issue.
 
 1. Fork the repository.
 2. Create a feature branch.
 3. Make a focused change.
-4. Test the app.
+4. Test the app and run `flutter analyze` and `flutter test`.
 5. Open a pull request.
 
 ## License
 
-Fumic is intended to stay free and open source under the GNU General Public License v3.0.
+Fumic is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ## Contact
 
-- GitHub: https://github.com/UnExplainableFish52
+- GitHub: [UnExplainableFish52](https://github.com/UnExplainableFish52)
 - Email: sharma@saksham.info.np
 - Email: contactsaksham52@gmail.com
 - Email: info@sakshamsharma.com.np
