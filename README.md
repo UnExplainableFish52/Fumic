@@ -6,9 +6,19 @@ Fumic is a free, open-source music and video player for Windows, built with Flut
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)](https://github.com/UnExplainableFish52/Fumic)
 [![Built with Flutter](https://img.shields.io/badge/Built%20with-Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
 
+## Preview
+
+[Watch the Fumic promotional video](Fumic_PV.mp4) (10 seconds).
+
 ## Download
 
-Get [Fumic 2.6.4 for Windows x64](https://github.com/UnExplainableFish52/Fumic/releases/tag/v2.6.4), or browse [all releases](https://github.com/UnExplainableFish52/Fumic/releases).
+<a href="https://apps.microsoft.com/store/detail/9P1F9S2TDBWJ?cid=DevShareMWAPCS">
+  <img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" width="200">
+</a>
+
+Get Fumic from the [Microsoft Store](https://apps.microsoft.com/store/detail/9P1F9S2TDBWJ?cid=DevShareMWAPCS). This Store link stays the same for all future updates.
+
+You can also download [Fumic 2.6.4 for Windows x64](https://github.com/UnExplainableFish52/Fumic/releases/tag/v2.6.4) directly, or browse [all releases](https://github.com/UnExplainableFish52/Fumic/releases).
 
 | Download | How to use it |
 | --- | --- |
