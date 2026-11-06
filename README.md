@@ -8,7 +8,9 @@ Fumic is a free, open-source music and video player for Windows, built with Flut
 
 ## Preview
 
-[Watch the Fumic promotional video](Fumic_PV.mp4) (10 seconds).
+[![Fumic promotional video preview](docs/assets/fumic-preview.gif)](Fumic_PV.mp4)
+
+Click the animated preview to watch the full 10-second video with sound.
 
 ## Download
 
